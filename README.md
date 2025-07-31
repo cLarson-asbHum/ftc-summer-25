@@ -1,4 +1,5 @@
-[![Gradle Build and Test](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle.yaml/badge.svg)](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle.yaml)
+[![Build](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-build.yaml/badge.svg)](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-build.yaml)
+[![Unit Tests](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-test.yaml/badge.svg)](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-test.yaml)
 
 # C. Larson Summer 2025 Testing Repo
 
