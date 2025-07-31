@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.gobilda;
 
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.roadrunner.DualNum;
@@ -20,41 +20,36 @@ import com.qualcomm.robotcore.hardware.IMU;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AngularVelocity;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
+import org.firstinspires.ftc.teamcode.Localizer;
 import org.firstinspires.ftc.teamcode.messages.TwoDeadWheelInputsMessage;
+import org.firstinspires.ftc.teamcode.messages.RRGoBildaInputsMessage;
 
 @Config
-public final class TwoDeadWheelLocalizer implements Localizer {
+public final class RRGobildaLocalizer implements Localizer {
     public static class Params {
 
         // 30 = 2004.5
-        public double parYTicks = 2095.1; // y position of the parallel encoder (in tick units)
-        // 2150.4 OLD 2164.32527311559
+        public double parYTicks = 2004.5; // y position of the parallel encoder (in tick units)
 
         // 30 = 130.1
-        public double perpXTicks = -48.6; // x position of the perpendicular encoder (in tick units)
-        // -326.8 OLD -183.9643549844739
+        public double perpXTicks = 130.1; // x position of the perpendicular encoder (in tick units)
 
-        // used to correct IMU inaccuracy when turning multiple times in the same direction
-        // adjust as needed
-        public double headingMultiplier = 0.0208; // custom variable | 0.002755 LOGO UP USB FORWARD
     }
 
     public static Params PARAMS = new Params();
 
     public final Encoder par, perp;
-    public final IMU imu;
+    // public final IMU imu;
+    public final GoBildaPinpointDriver bildaDriver;
+    public boolean hasReturnedNaN = false;
 
     private int lastParPos, lastPerpPos;
     private Rotation2d lastHeading;
-    
 
-    public final double headingRange = Math.PI - (-Math.PI) + 1; // custom variable
-    public final double degree30 = 0.5235; // custom variable
-    private double accumulativeYaw; // custom variable
-    public int turnCount; // custom variable
-    private double previousYaw; // custom variable
+    private PoseVelocity2d lastPoseVel;
 
     private final double inPerTick;
 
@@ -62,7 +57,7 @@ public final class TwoDeadWheelLocalizer implements Localizer {
     private boolean initialized;
     private Pose2d pose;
 
-    public TwoDeadWheelLocalizer(HardwareMap hardwareMap, IMU imu, double inPerTick, Pose2d initialPose) {
+    public RRGobildaLocalizer(HardwareMap hardwareMap, GoBildaPinpointDriver bildaDriver, double inPerTick, Pose2d initialPose) {
         // TODO: make sure your config has **motors** with these names (or change them)
         //   the encoders should be plugged into the slot matching the named motor
         //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
@@ -72,16 +67,22 @@ public final class TwoDeadWheelLocalizer implements Localizer {
         // TODO: reverse encoder directions if needed
         //   par.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        this.imu = imu;
+        // this.imu = imu;
+
+        this.bildaDriver = bildaDriver;
+
+        this.bildaDriver.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_SWINGARM_POD);
+
+        this.bildaDriver.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
+                GoBildaPinpointDriver.EncoderDirection.FORWARD);
+
+        this.bildaDriver.recalibrateIMU(); // should let robot sit still for 0.25s
 
         this.inPerTick = inPerTick;
 
-        FlightRecorder.write("TWO_DEAD_WHEEL_PARAMS", PARAMS);
+        FlightRecorder.write("RR_GOBILDA_PARAMS", PARAMS);
 
         pose = initialPose;
-        
-        this.accumulativeYaw = 0; // custom
-        this.turnCount = 0; // custom
     }
 
     @Override
@@ -99,28 +100,37 @@ public final class TwoDeadWheelLocalizer implements Localizer {
         PositionVelocityPair parPosVel = par.getPositionAndVelocity();
         PositionVelocityPair perpPosVel = perp.getPositionAndVelocity();
 
-        YawPitchRollAngles angles = imu.getRobotYawPitchRollAngles();
-        // Use degrees here to work around https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1070
-        AngularVelocity angularVelocityDegrees = imu.getRobotAngularVelocity(AngleUnit.DEGREES);
-        AngularVelocity angularVelocity = new AngularVelocity(
-                UnnormalizedAngleUnit.RADIANS,
-                (float) Math.toRadians(angularVelocityDegrees.xRotationRate),
-                (float) Math.toRadians(angularVelocityDegrees.yRotationRate),
-                (float) Math.toRadians(angularVelocityDegrees.zRotationRate),
-                angularVelocityDegrees.acquisitionTime
-        );
+        // YawPitchRollAngles angles = imu.getRobotYawPitchRollAngles();
+        // // Use degrees here to work around https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1070
+        // AngularVelocity angularVelocityDegrees = imu.getRobotAngularVelocity(AngleUnit.DEGREES);
+        // AngularVelocity angularVelocity = new AngularVelocity(
+        //         UnnormalizedAngleUnit.RADIANS,
+        //         (float) Math.toRadians(angularVelocityDegrees.xRotationRate),
+        //         (float) Math.toRadians(angularVelocityDegrees.yRotationRate),
+        //         (float) Math.toRadians(angularVelocityDegrees.zRotationRate),
+        //         angularVelocityDegrees.acquisitionTime
+        // );
 
-        FlightRecorder.write("TWO_DEAD_WHEEL_INPUTS", new TwoDeadWheelInputsMessage(parPosVel, perpPosVel, angles, angularVelocity));
+        bildaDriver.update();
+        Pose2D bildaPos = bildaDriver.getPosition();
+        Pose2D bildaVel = bildaDriver.getVelocity();
 
-        Rotation2d heading = Rotation2d.exp(angles.getYaw(AngleUnit.RADIANS));
+        FlightRecorder.write("RR_GOBILDA_INPUTS", new RRGoBildaInputsMessage(parPosVel, perpPosVel,
+                bildaPos.getHeading(AngleUnit.RADIANS), bildaVel.getHeading(AngleUnit.RADIANS)));
+
+        // Rotation2d heading = Rotation2d.exp(angles.getYaw(AngleUnit.RADIANS));
+        Rotation2d heading = Rotation2d.exp(bildaPos.getHeading(AngleUnit.RADIANS));
 
         // see https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/617
-        double rawHeadingVel = angularVelocity.zRotationRate;
-        if (Math.abs(rawHeadingVel - lastRawHeadingVel) > Math.PI) {
-            headingVelOffset -= Math.signum(rawHeadingVel) * 2 * Math.PI;
-        }
-        lastRawHeadingVel = rawHeadingVel;
-        double headingVel = headingVelOffset + rawHeadingVel;
+        // TODO: uncomment if feedforward for heading vel not working as expected
+        // double rawHeadingVel = bildaVel.getHeading(AngleUnit.RADIANS);
+        // if (Math.abs(rawHeadingVel - lastRawHeadingVel) > Math.PI) {
+        //     headingVelOffset -= Math.signum(rawHeadingVel) * 2 * Math.PI;
+        // }
+        // lastRawHeadingVel = rawHeadingVel;
+        // double headingVel = headingVelOffset + rawHeadingVel;
+
+        double headingVel = (float) bildaVel.getHeading(AngleUnit.RADIANS);
 
         if (!initialized) {
             initialized = true;
@@ -129,12 +139,18 @@ public final class TwoDeadWheelLocalizer implements Localizer {
             lastPerpPos = perpPosVel.position;
             lastHeading = heading;
 
-            return new PoseVelocity2d(new Vector2d(0.0, 0.0), 0.0);
+            return lastPoseVel = new PoseVelocity2d(new Vector2d(0.0, 0.0), 0.0);
         }
 
         int parPosDelta = parPosVel.position - lastParPos;
         int perpPosDelta = perpPosVel.position - lastPerpPos;
         double headingDelta = heading.minus(lastHeading);
+
+        // Protecting against the NaN spikes the pinpoint produces
+        if (Double.isNaN(headingDelta) || Double.isNaN(headingVel)) {
+            hasReturnedNaN = true;
+            return lastPoseVel;
+        }
 
         Twist2dDual<Time> twist = new Twist2dDual<>(
                 new Vector2dDual<>(
@@ -158,6 +174,6 @@ public final class TwoDeadWheelLocalizer implements Localizer {
         lastHeading = heading;
 
         pose = pose.plus(twist.value());
-        return twist.velocity().value();
+        return lastPoseVel = twist.velocity().value();
     }
 }

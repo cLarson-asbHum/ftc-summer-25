@@ -41,6 +41,8 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
+import org.firstinspires.ftc.teamcode.gobilda.GoBildaPinpointDriver;
+import org.firstinspires.ftc.teamcode.gobilda.RRGobildaLocalizer;
 import org.firstinspires.ftc.teamcode.messages.DriveCommandMessage;
 import org.firstinspires.ftc.teamcode.messages.MecanumCommandMessage;
 import org.firstinspires.ftc.teamcode.messages.MecanumLocalizerInputsMessage;
@@ -55,40 +57,73 @@ import java.util.List;
 public final class MecanumDrive {
     public static class Params {
         // IMU orientation
-        // TODO: fill in these values based on
-        //   see https://ftc-docs.firstinspires.org/en/latest/programming_resources/imu/imu.html?highlight=imu#physical-hub-mounting
+
         public RevHubOrientationOnRobot.LogoFacingDirection logoFacingDirection =
                 RevHubOrientationOnRobot.LogoFacingDirection.UP;
         public RevHubOrientationOnRobot.UsbFacingDirection usbFacingDirection =
-                RevHubOrientationOnRobot.UsbFacingDirection.FORWARD;
+                RevHubOrientationOnRobot.UsbFacingDirection.UP;
 
         // drive model parameters
-        public double inPerTick = 1;
-        public double lateralInPerTick = inPerTick;
-        public double trackWidthTicks = 0;
+
+
+        public double inPerTick = 0.00304;
+
+        public double lateralInPerTick = 0.00180; // run LatRampLog if having issues (normally = inPerTick)
+        // 0.002525487032662218
+
+        // 30 = 5575.1
+        public double trackWidthTicks = 4146.1; // 4320.3 OLD 3455.7795234191576
 
         // feedforward parameters (in tick units)
-        public double kS = 0;
-        public double kV = 0;
-        public double kA = 0;
+
+        //kV: 0.0007482212097879431, kS: 1.0062087209129773
+        // 30 = 0.53
+        public double kS = 2.45; // 1.56 OLD 1.0062087209129773
+
+        // 30 = 0.000541
+        public double kV = 0.000365; // 0.00054 OLD 0.0007482212097879431
+
+        // 30 = 0.00004
+        public double kA = 0.000055; // 0.00005 OLD 0.0000929688
 
         // path profile parameters (in inches)
-        public double maxWheelVel = 50;
-        public double minProfileAccel = -30;
-        public double maxProfileAccel = 50;
+
+        // 30 = 30
+        public double maxWheelVel = 42; // 35
+
+        // 30 = -30
+        public double minProfileAccel = -1.5 * maxWheelVel; // -30
+
+        // 30 = 30
+        public double maxProfileAccel = 1.5 * maxWheelVel; // 30
 
         // turn profile parameters (in radians)
-        public double maxAngVel = Math.PI; // shared with path
-        public double maxAngAccel = Math.PI;
+
+        // 30 = 2.531 ~ Math.toRadians(145)
+        public double maxAngVel = 1.44; // shared with path
+
+        // 30 = 2.531 ~ Math.toRadians(145)
+        public double maxAngAccel = 4.000; // ~ 165 degrees // 2.880
 
         // path controller gains
-        public double axialGain = 0.0;
-        public double lateralGain = 0.0;
-        public double headingGain = 0.0; // shared with turn
 
-        public double axialVelGain = 0.0;
-        public double lateralVelGain = 0.0;
-        public double headingVelGain = 0.0; // shared with turn
+        // 30 = 2.0
+        public double axialGain = 5.0; // 5.0
+
+        // 30 = 3.0
+        public double lateralGain = 5.0; // 5.0
+
+        // 30 = 3.0
+        public double headingGain = 5.0; // 5.0, shared with turn
+
+        public double axialVelGain = 1.0; // 1.0
+        public double lateralVelGain = 1.0; // 1.0
+        public double headingVelGain = 0.0; // 0.0, shared with turn
+
+        public double positionTolerance = 1.0; // Inches
+        public double headingTolerance = Math.toRadians(5); // Radians
+        public double velTolerance = 5.0; // Distance in/sec
+        public double readjustmentTime = 1.0;
     }
 
     public static Params PARAMS = new Params();
@@ -113,6 +148,11 @@ public final class MecanumDrive {
     public final LazyImu lazyImu;
 
     public final Localizer localizer;
+    public final GoBildaPinpointDriver bildaDriver;
+
+
+
+
     private final LinkedList<Pose2d> poseHistory = new LinkedList<>();
 
     private final DownsampledWriter estimatedPoseWriter = new DownsampledWriter("ESTIMATED_POSE", 50_000_000);
@@ -225,10 +265,10 @@ public final class MecanumDrive {
 
         // TODO: make sure your config has motors with these names (or change them)
         //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
-        leftFront = hardwareMap.get(DcMotorEx.class, "leftFront");
-        leftBack = hardwareMap.get(DcMotorEx.class, "leftBack");
-        rightBack = hardwareMap.get(DcMotorEx.class, "rightBack");
-        rightFront = hardwareMap.get(DcMotorEx.class, "rightFront");
+        leftFront = hardwareMap.get(DcMotorEx.class, "frontLeft");
+        leftBack = hardwareMap.get(DcMotorEx.class, "backLeft");
+        rightBack = hardwareMap.get(DcMotorEx.class, "backRight");
+        rightFront = hardwareMap.get(DcMotorEx.class, "frontRight");
 
         leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         leftBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -236,7 +276,8 @@ public final class MecanumDrive {
         rightFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // TODO: reverse motor directions if needed
-        //   leftFront.setDirection(DcMotorSimple.Direction.REVERSE);
+        leftFront.setDirection(DcMotorSimple.Direction.REVERSE);
+        leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
 
         // TODO: make sure your config has an IMU with this name (can be BNO or BHI)
         //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
@@ -245,7 +286,12 @@ public final class MecanumDrive {
 
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
-        localizer = new DriveLocalizer(pose);
+        bildaDriver = hardwareMap.get(GoBildaPinpointDriver.class, "bildaDriver");
+
+
+        // localizer = new DriveLocalizer(pose);
+        localizer = new RRGobildaLocalizer(hardwareMap, bildaDriver, PARAMS.inPerTick, pose);
+
 
         FlightRecorder.write("MECANUM_PARAMS", PARAMS);
     }
@@ -296,7 +342,20 @@ public final class MecanumDrive {
                 t = Actions.now() - beginTs;
             }
 
-            if (t >= timeTrajectory.duration) {
+            // Firguring out the position, heading, and veloicty errors
+            Pose2dDual<Time> txWorldTarget = timeTrajectory.get(t);
+            targetPoseWriter.write(new PoseMessage(txWorldTarget.value()));
+            PoseVelocity2d robotVelRobot = updatePoseEstimate();
+            Pose2d error = txWorldTarget.value().minusExp(localizer.getPose());
+
+            // Until PARAMS.readjustmentTime is elapsed, attempt to fulfill 
+            // correction parameters seen below
+            if ((t >= timeTrajectory.duration
+                    && error.position.norm() < PARAMS.positionTolerance
+                    && Math.abs(Math.toDegrees(error.heading.toDouble())) < PARAMS.headingTolerance
+                    && robotVelRobot.linearVel.norm() < PARAMS.velTolerance)
+                    || t >= timeTrajectory.duration + PARAMS.readjustmentTime) {
+            
                 leftFront.setPower(0);
                 leftBack.setPower(0);
                 rightBack.setPower(0);
@@ -305,10 +364,6 @@ public final class MecanumDrive {
                 return false;
             }
 
-            Pose2dDual<Time> txWorldTarget = timeTrajectory.get(t);
-            targetPoseWriter.write(new PoseMessage(txWorldTarget.value()));
-
-            PoseVelocity2d robotVelRobot = updatePoseEstimate();
 
             PoseVelocity2dDual<Time> command = new HolonomicController(
                     PARAMS.axialGain, PARAMS.lateralGain, PARAMS.headingGain,
@@ -339,7 +394,7 @@ public final class MecanumDrive {
             p.put("y", localizer.getPose().position.y);
             p.put("heading (deg)", Math.toDegrees(localizer.getPose().heading.toDouble()));
 
-            Pose2d error = txWorldTarget.value().minusExp(localizer.getPose());
+            // Pose2d error = txWorldTarget.value().minusExp(localizer.getPose());
             p.put("xError", error.position.x);
             p.put("yError", error.position.y);
             p.put("headingError (deg)", Math.toDegrees(error.heading.toDouble()));
