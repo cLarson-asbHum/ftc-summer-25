@@ -71,6 +71,7 @@ public class DcMotorSimpleFake implements DcMotorSimple {
     @Override
     public void resetDeviceConfigurationForOpMode() {
         this.direction = DcMotorSimple.Direction.FORWARD;
+        this.setPower(0);
     }
 
     @Override
@@ -91,7 +92,7 @@ public class DcMotorSimpleFake implements DcMotorSimple {
      * @return The new velocity, in ticks per second
      */
     public double addAngularVel(double thetaPrime) {
-        return this.velocity = thetaPrime / (2 * Math.PI) * this.ticksPerRev;
+        return this.velocity += thetaPrime / (2 * Math.PI) * this.ticksPerRev;
     }
 
     /**
