@@ -18,6 +18,7 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
     private int target;
     private boolean enabled = true;
     private boolean busy = false;
+    private boolean targetSet = false; // Only used to valid that a target has been set before RUN_TO_POSITION
     private DcMotor.ZeroPowerBehavior zeroPowerBehavior = DcMotor.ZeroPowerBehavior.BRAKE;
 
     private double runToPower;
@@ -50,7 +51,7 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
     public double getCurrent(CurrentUnit unit) {
         // Just pretending that resistance doesn't matter (it doesn't, so touch 
         // exposed wires, kids!) and so current = voltage
-        return unit.convert(13 * this.power, CurrentUnit.AMPS);
+        return unit.convert(Math.abs(13 * this.power), CurrentUnit.AMPS);
     }
 
     @Override
@@ -61,13 +62,22 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
             return;
         }
 
-        if(!(this.mode == DcMotor.RunMode.RUN_TO_POSITION && runMode == DcMotor.RunMode.RUN_TO_POSITION)) {
+        if(runMode == DcMotor.RunMode.RUN_TO_POSITION && !targetSet) {
+            // If no target has been set, throw an exception
+            throw new RuntimeException("No target set before setting runMode to RUN_TO_POSITION");
+        }
+        
+        if(this.mode != DcMotor.RunMode.RUN_TO_POSITION || runMode != DcMotor.RunMode.RUN_TO_POSITION) {
+            // Cleanup for when exiting RUN_TO_POSITION. Going to and from RUN_TO_POSITIOM doesn't count.
+            // NOTE: This also executes when going to RUN_TO_POSITION from a non-RUN_TO mode. 
             this.runToFactor = 1;
             this.busy = false;
+            this.targetSet = false;
         }
 
         if(runMode == DcMotor.RunMode.RUN_TO_POSITION) {
             this.busy = true;
+            this.velocity = 0;
         }
 
         // this.velocity = 0;
@@ -82,6 +92,7 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
     @Override
     public void setTargetPosition(int target) {
         this.target = target;
+        this.targetSet = true;
     }
 
     @Override
@@ -110,18 +121,23 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
         this.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     }
 
+    @Override
     public boolean getPowerFloat() {
         return this.zeroPowerBehavior == DcMotor.ZeroPowerBehavior.FLOAT;
     }
 
     @Override
     public void setPower(double power) {
+        if(!this.enabled) {
+            return;
+        }
+
         if(this.mode == DcMotor.RunMode.RUN_TO_POSITION) {
             this.power = power;
             this.runToPower = power;
             return;
         }
-
+        
         // Default: Just set the power (duh...)
         this.runToPower = power;
         super.setPower(power);
@@ -129,6 +145,10 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
 
     @Override
     public void setVelocity(double vel) {
+        if(!this.enabled) {
+            return;
+        }
+
         if(this.mode == DcMotor.RunMode.RUN_USING_ENCODER) {
             this.velocity = Range.clip(vel, -this.maxTickSpeed, this.maxTickSpeed);
         }
@@ -136,23 +156,21 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
 
     @Override
     public void setVelocity(double vel, AngleUnit unit) {
-        if(this.mode == DcMotor.RunMode.RUN_USING_ENCODER) {
-            this.velocity = Range.clip(
-                unit.toDegrees(vel) / 180 * ticksPerRev, 
-                -this.maxTickSpeed, 
-                this.maxTickSpeed
-            );
-        }
+        setVelocity(unit.fromDegrees(vel / this.ticksPerRev * 360));
     }
 
     @Override
     public double getVelocity() {
+        if(this.mode == DcMotor.RunMode.RUN_WITHOUT_ENCODER) {
+            return 0;
+        }
+
         return this.velocity;
     }
     
     @Override
     public double getVelocity(AngleUnit unit) {
-        return unit.fromDegrees(this.velocity / this.ticksPerRev * 180);
+        return unit.fromDegrees(this.velocity / this.ticksPerRev * 360);
     }
 
     @Override
@@ -250,20 +268,33 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
         return null;
     }
 
+    @Override
+    public void resetDeviceConfigurationForOpMode() {
+        super.resetDeviceConfigurationForOpMode();
+        this.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        this.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        this.setDirection(DcMotor.Direction.FORWARD);
+        this.setPower(0);
+    }
+
     private double updateRunToVelocity() {
         // TODO: Turn RUN_TO_POSITION into a PID method instead of this
         // Getting the speed factor
         double reverseFactor  = 1; // Reverse at a lower speed if the target is missed.
-        if((this.target - this.currentPosition) / this.velocity < 0 && this.runToFactor != -1) {
+        if((this.target - this.currentPosition) / this.velocity < 0 && this.runToFactor == 1) {
+            // Reversing the power so wer alsways start in the correct direction
+            reverseFactor *= -1;
+        } else if((this.target - this.currentPosition) / this.velocity < 0) {
             reverseFactor *= -0.5; // Put it in reverse, Ter! ...and put half the previous speed
             // reverseFactor *= -1; // Put it in reverse, Ter! ...and put half the previous speed
-        } else if(this.runToFactor == 1) {
-            reverseFactor *= -1;
         }
 
         this.runToFactor *= reverseFactor;
 
         // Setting the velocity;
+        if(this.getDirection() == DcMotor.Direction.REVERSE) {
+            System.out.println("[updateRunVelocity] maxTickSpeed: " + this.maxTickSpeed);
+        }
         this.velocity = this.runToPower * this.runToFactor * this.maxTickSpeed;
         return reverseFactor;
     }
@@ -285,7 +316,19 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
      * tests to simulate physics, such as the moment on an arm from gravity.
      * 
      * If the motor is in DcMotor.RunMode.RUN_USING_ENCODER or 
-     * DcMotor.RunMode.RUN_TO_POSITION, this only clamps the velocity.
+     * DcMotor.RunMode.RUN_TO_POSITION, this only clamps the velocity. The new 
+     * range is [tickPrime - |maxTickSpeed|,  tickPrime + |maxTickSpeed|], where
+     * tickPrime is thetaPrime converted to ticks per second. This simulates the 
+     * effect of the motor being overpowered and, therefore, not holding 
+     * velocity. 
+     * 
+     * To illustrate the previous point, take for example setting a motor to 
+     * power 1.0 sets the velocity to 100 ticks per sec. A load on the motor, 
+     * however, is calculated to apply -20 ticks per sec to the motor, so the 
+     * velocity of the motor goes to 80 ticks per sec. However, if the motor was 
+     * originally set to 0.3 power andthe velocity to 30 ticks per second, the 
+     * motor would stay at 30 ticks per second, because the motor can apply more
+     * torque to overcome the counter-torque of the load.
      * 
      * The position is not updated until the `update()` is called, but the added
      * angular velocity persists until the next call to `setPower()` or some 
@@ -298,12 +341,18 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
         switch(this.mode) {
             case RUN_USING_ENCODER: 
             case RUN_TO_POSITION:
-                final double ticksPrime = thetaPrime / (2 * Math.PI) * ticksPerRev;
-                return this.velocity = Range.clip(
-                    super.addAngularVel(thetaPrime), 
-                    -this.maxTickSpeed + ticksPrime,
-                    this.maxTickSpeed + ticksPrime
-                ); 
+                // Only if we are enabled do we actually keep velocity; otherwise, we go into the 
+                // default block, which causes the motor vel to change.
+                if(this.enabled) {
+                    final double ticksPrime = thetaPrime / (2 * Math.PI) * ticksPerRev;
+                    return this.velocity = Range.clip(
+                        this.velocity, 
+                        -this.maxTickSpeed + ticksPrime,
+                        this.maxTickSpeed + ticksPrime
+                    ); 
+                }
+
+                // No break statement. We only break in the if statement above
 
             default:
                 return super.addAngularVel(thetaPrime);
@@ -321,6 +370,7 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
             && Math.abs(this.currentPosition - this.target) <= this.tolerance
         ) {
             this.busy = false;
+            this.targetSet = false;
             this.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
 
