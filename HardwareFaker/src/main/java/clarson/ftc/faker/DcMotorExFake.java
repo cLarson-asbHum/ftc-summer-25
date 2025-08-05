@@ -334,7 +334,7 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
      * angular velocity persists until the next call to `setPower()` or some 
      * other change to the velocity.
      * 
-     * @param thetaPrime Added angular velocity, in radians per second.
+     * @param thetaPrime New angular velocity, in ticks per second.
      * @return The new velocity, in ticks per second
      */
     public double addAngularVel(double thetaPrime) {
