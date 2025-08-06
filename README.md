@@ -9,70 +9,107 @@ interesting or useful, please, search elsewhere.
 
 ## `test-double`
 
-This branch pertains to the creation and testing of test doubles of common classes in `com.qualcomm.robotcore.hardware`. The currently implemented classes can be seen below in the "HardwareFaker Subproject" section.
+This branch pertains to the creation and testing of test doubles of common 
+classes in `com.qualcomm.robotcore.hardware`. The currently implemented classes 
+can be seen below in the "HardwareFaker Subproject" section.
 
 ## `HardwareFaker` Subproject
 
-This subproject contains several test doubles of `com.qualcomm.robotcore` devices common to FTC projects. Currently implemented Test doubles include the following:
+This subproject contains several test doubles of `com.qualcomm.robotcore` 
+devices common to FTC projects. Currently implemented Test doubles include 
+the following:
 
- * DcMotorEx (and so DcMotor)
+ * DcMotorEx
+ * CRServoImplEx
 
-Along with these, the following hardware devices are planned to be implemented:
+Along with these, the following classes are planned to be implemented:
 
  * ColorRangeSensor
- * CRServo
  * DistanceSensor
+ * Gamepad
  * IMU
- * Servo
+ * ServoImplEx
+ * Telemetry
  * TouchSensor
 
-### Usage
+### Intallation
 
-1. Clone this repository **or** manually copy the HardwareFaker directory into your project
+1. Clone this repository **or** manually copy the HardwareFaker directory 
+   into your project
 
-    i. If you are copying the HardwareFaker directory manually, add the following line to the top-level (i.e. not inside TeamCode or FtcRobotController) `settings.gradle`:
+    i. If you are copying the HardwareFaker directory manually, add the 
+       following line to the top-level `settings.gradle`:
 
 ```gradle
-include ":HardwareFaker" // Or whatever you rename it to.
+include ":HardwareFaker" // Or whatever you rename the directory to.
 ```
 
-2. Include the following code in your project's `build.gradle` (most commonly in the `:TeamCode` subproject):
+2. Include the following code in your project's `build.gradle` (most commonly in 
+   the `:TeamCode` subproject):
 
 ```gradle
 dependencies {
     // ... other statements
 
-    implementation project(':HardwareFaker')
+    implementation project(':HardwareFaker') // Or whatever you rename the directory to.
 
     // ...
 }
 ```
 
-3. Import the desired test double. All fakes are located in the `clarson.ftc.faker` package and have the class name formula of `${HardwareDevice}Fake`. For example, to import the test double for `DcMotorEx`, place the following import statement at thte beginning of your code:
+3. Import the desired test double. All fakes are located in the 
+   `clarson.ftc.faker` package and have the class name formula of 
+   `${HardwareDevice}Fake`. For example, to import the test double for 
+   `DcMotorEx`, place the following import statement at the beginning of your 
+   code:
 
 ```java
 import clarson.ftc.faker.DcMotorExFake;
 ```
 
-4. Construct the fake. `DcMotorExFake` is constructed with an RPM and number of ticks per revolution, in that order. Specifics for other constructors varies.
+4. Construct the fake. `DcMotorExFake` is constructed with an RPM and number of 
+   ticks per revolution, in that order. Specifics for other constructors vary.
 
-5. Use the fake wherever you would use the ordinary object! All fakes implement the corresponding interfaces; `DcMotorExFake` implements the `DcMotorEx` interface from `com.qualcomm.robotcore.hardware`.
+5. Use the fake wherever you would use the ordinary object! All fakes implement 
+   the corresponding interfaces; `DcMotorExFake` implements the `DcMotorEx` 
+   interface from `com.qualcomm.robotcore.hardware`, and so the following code 
+   is completely valid:
 
 ```java
 DcMotorEx motor = new DcMotorExFake(312, 576.6);
 motor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-motor.getMode(); // Gets DcMotorEx.RunMode.RUN_USING_ENCODER
+motor.getMode(); // Returns DcMotorEx.RunMode.RUN_USING_ENCODER
 
 motor.setPower(0.33); // The motor's current position will begin to move
-motor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+motor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER); // Resets getCurrentPosition()
 ```
 
-Note that if you wanted the test double of `DcMotor`, you would simply use the `DcMotorExFake` constructor but type the field/variable as `DcMotor`. In other words, line 1 in the previous example becomes
+**NOTE:** If you wanted the test double of `DcMotor`, you would simply use 
+the `DcMotorExFake` constructor as normal but use the field/variable as 
+`DcMotor`. In other words, line 1 in the previous example becomes
 
 ```java
 DcMotor motor = new DcMotorExFake(312, 576.6);
-// Previously was "DcMotorEx motor = DcMotorEx(312, 576.6)" 
+// Previously was "DcMotorEx motor = new DcMotorExFake(312, 576.6)" 
 ```
 
+This also applies for other super-interfaces, such as `Servo` and `CRServo`; use the fake with "Ex" in its name. For `Servo`, use `ServoImplExFake`, and with `CRServo` use `CRServoImplExFake`.  
+
 ### Known Issues
-TODO: fill in with the bugs/caveats that I made.
+ 
+ * Calls to Lynx-module issuing methods such as `setPower()` do not simulate the
+   delay of such operation. This, in turn, means opmode devices are not being
+   updated
+
+ * `HardwareDevice` methods, such as `getConnectionInfo()`, return garbage data 
+
+ * All actuators assume acceleration and friction are negligible. This is most
+   notable with `DcMotorExFake.setVelocity()`, which instantly changes the
+   velocity.
+
+ * All PID(F) coefficient-setting methods in `DcMotorExFake` do nothing as neither
+  `RUN_TO_POSITION` nor `RUN_USING_ENCODER` are implemented with PID(F)
+   controllers.
+ 
+ * Framing length in `PwmController.PwmRange` objects is ignored for all servo
+   fakes.
