@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
+import org.junit.jupiter.api.AssertionFailureBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.function.Executable;
 
 import org.junit.jupiter.params.Parameter;
 import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -35,6 +37,18 @@ class DcMotorExFakeUnitTest {
         } 
     }
 
+    private static void assertFloatEquals(double expected, double actual, double eps){
+        if(Math.abs(expected - actual) > eps) {
+            AssertionFailureBuilder
+                .assertionFailure()
+                .reason("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
+                // .message("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
+                .actual(actual)
+                .expected(expected)
+                .includeValuesInMessage(false)
+                .buildAndThrow();
+        }
+    }
 
     @DisplayName("Can construct")
     @Test 
@@ -62,7 +76,7 @@ class DcMotorExFakeUnitTest {
 
     @DisplayName("Construction Dependent")
     @ParameterizedClass
-    @ValueSource(strings = { "FORWARD", "REVERSE" })
+    @ValueSource(strings = { "FORWARD"  , "REVERSE"  })
     @Nested
     class ConstructionDependent {
         private DcMotorExFake motor;
@@ -84,6 +98,7 @@ class DcMotorExFakeUnitTest {
             }
             // motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
+        
         @DisplayName("DcMotorSimple Inherited")
         @Nested
         class DcMotorSimpleInherited {
@@ -468,6 +483,66 @@ class DcMotorExFakeUnitTest {
                 assertEquals(unaffectedVel42, motor.getVelocity());
                 
             }
+        
+            private double raisedSignum(double x) {
+                return x == 0.0 ? 1 : Math.signum(x);
+            }
+
+            @ParameterizedTest
+            @ValueSource(doubles = { 0.0, 0.5, -0.5 })
+            @DisplayName("RUN_USING_ENCODER power can be overpowerd by two small offsets")
+            void sumOfPartsOverpoweringPower(double power) {
+                double actualSpeed = ticksPerSec;
+
+                if(motor.getDirection() == DcMotor.Direction.REVERSE) {
+                    actualSpeed = -ticksPerSec;
+                }
+
+                // Using power
+                motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                motor.setPower(power);
+                final double deltaRev = motor.update(1);
+                assertFloatEquals(power * actualSpeed, deltaRev, 1e-10);
+
+                final double fraction = -0.75 * (1 - power); // Cannot overcome power on its own
+                motor.addAngularVel(fraction * actualSpeed / radsToTicks);
+                final double affectedDeltaRev = motor.update(1);
+                assertFloatEquals(deltaRev, affectedDeltaRev, 1e-10);
+                
+                motor.addAngularVel(fraction * actualSpeed / radsToTicks);
+                final double affectedDeltaRev2 = motor.update(1);
+                assertNotEquals(deltaRev, affectedDeltaRev2);
+                assertFloatEquals(
+                    actualSpeed * (1 + 2 * fraction), 
+                    affectedDeltaRev2, 
+                    1e-10
+                );
+            }
+            
+            @ParameterizedTest
+            @ValueSource(doubles = { 0.0, 0.5, -0.5 })
+            @DisplayName("RUN_USING_ENCODER velocity can be overpowerd by two small offsets")
+            void sumOfPartsOverpoweringVelocity(double power) {
+                // Using power
+                motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                motor.setVelocity(power * ticksPerSec);
+                final double deltaRev = motor.update(1);
+                assertFloatEquals(power * ticksPerSec, deltaRev, 1e-10);
+
+                final double fraction = -0.75 * (1 - power); // Cannot overcome power on its own
+                motor.addAngularVel(fraction * ticksPerSec / radsToTicks);
+                final double affectedDeltaRev = motor.update(1);
+                assertFloatEquals(deltaRev, affectedDeltaRev, 1e-10);
+                
+                motor.addAngularVel(fraction * ticksPerSec / radsToTicks);
+                final double affectedDeltaRev2 = motor.update(1);
+                assertNotEquals(deltaRev, affectedDeltaRev2);
+                assertFloatEquals(
+                    ticksPerSec * (1 + 2 * fraction), 
+                    affectedDeltaRev2, 
+                    1e-10
+                );
+            }
         }
     
         @DisplayName("Simple Position Manipulation")
@@ -528,7 +603,6 @@ class DcMotorExFakeUnitTest {
             @DisplayName("RUN_TO_POSITION throws without target")
             @Test
             void runToPositionThrowsWithNoTarget() {
-                // FIXME: Fails!
                 assertThrows(RuntimeException.class, () -> {
                     motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                 });

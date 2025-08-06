@@ -194,7 +194,6 @@ public class CRServoImplExFake extends CRServoImplEx implements Rotateable, Upda
     public double addAngularVel(double thetaPrime) {
         this.accumulatedVelOffset += thetaPrime;
         if(this.power == 0 && this.pwmEnabled) {
-            // FIXME: Braking can resist 2 calls to addAngularVel, even if the sum cannot be resisted.
             return this.velocity = Range.clip(
                 0,
                 this.getLowerSpeed() + accumulatedVelOffset / (2 * Math.PI),

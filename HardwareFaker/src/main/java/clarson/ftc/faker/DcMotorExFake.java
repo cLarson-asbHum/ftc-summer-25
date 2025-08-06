@@ -16,6 +16,7 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
     private double currentAlertAmps = 0;
     private int tolerance = 3;
     private int target;
+    private double accumulatedVelOffset = 0; // Radians / sec
     private boolean enabled = true;
     private boolean busy = false;
     private boolean targetSet = false; // Only used to valid that a target has been set before RUN_TO_POSITION
@@ -135,10 +136,12 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
         if(this.mode == DcMotor.RunMode.RUN_TO_POSITION) {
             this.power = power;
             this.runToPower = power;
+            this.accumulatedVelOffset = 0;
             return;
         }
         
         // Default: Just set the power (duh...)
+        this.accumulatedVelOffset = 0;
         this.runToPower = power;
         super.setPower(power);
     }
@@ -151,6 +154,10 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
 
         if(this.mode == DcMotor.RunMode.RUN_USING_ENCODER) {
             this.velocity = Range.clip(vel, -this.maxTickSpeed, this.maxTickSpeed);
+            this.power = this.direction == DcMotor.Direction.REVERSE 
+                ? -this.velocity / this.maxTickSpeed
+                : this.velocity / this.maxTickSpeed;
+            this.accumulatedVelOffset = 0;
         }
     }
 
@@ -338,18 +345,22 @@ public class DcMotorExFake extends DcMotorSimpleFake implements DcMotorEx {
      * @return The new velocity, in ticks per second
      */
     public double addAngularVel(double thetaPrime) {
+        this.accumulatedVelOffset += thetaPrime;
+
         switch(this.mode) {
             case RUN_USING_ENCODER: 
             case RUN_TO_POSITION:
                 // Only if we are enabled do we actually keep velocity; otherwise, we go into the 
                 // default block, which causes the motor vel to change.
                 if(this.enabled) {
-                    final double ticksPrime = thetaPrime / (2 * Math.PI) * ticksPerRev;
+                    final double unaffectedVelocity = this.direction == DcMotor.Direction.REVERSE
+                        ? -this.power * this.maxTickSpeed
+                        : this.power * this.maxTickSpeed;
                     return this.velocity = Range.clip(
-                        this.velocity, 
-                        -this.maxTickSpeed + ticksPrime,
-                        this.maxTickSpeed + ticksPrime
-                    ); 
+                        unaffectedVelocity,
+                        -this.maxTickSpeed + accumulatedVelOffset / (2 * Math.PI) * this.ticksPerRev,
+                        this.maxTickSpeed + accumulatedVelOffset / (2 * Math.PI) * this.ticksPerRev
+                    );
                 }
 
                 // No break statement. We only break in the if statement above
