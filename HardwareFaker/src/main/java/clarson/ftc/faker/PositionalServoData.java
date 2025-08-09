@@ -22,7 +22,7 @@ public class PositionalServoData extends ServoData<ServoImplEx> {
      * @return A new ServoData reference, with the same fields except for 
      * `actuator` which is now the given servo argument. 
      */
-    public static PositionalServoData copyForMotor(ServoImplEx servo, PositionalServoData source) {
+    public static PositionalServoData copyForServo(ServoImplEx servo, PositionalServoData source) {
         final PositionalServoData result = new PositionalServoData(
             servo, 
             source.maxRevsPerSec * 60, 

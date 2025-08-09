@@ -22,11 +22,11 @@ public class ContinuousServoData extends ServoData<CRServoImplEx> {
      * @return A new ServoData reference, with the same fields except for 
      * `actuator` which is now the given servo argument. 
      */
-    public static ContinuousServoData copyForMotor(CRServoImplEx servo, ContinuousServoData source) {
+    public static ContinuousServoData copyForServo(CRServoImplEx servo, ContinuousServoData source) {
         final ContinuousServoData result = new ContinuousServoData(
             servo, 
             source.maxRevsPerSec * 60, 
-            0, 
+            source.position, 
             source.maxPwm
         );
         result.copyAvailableProperties(source);

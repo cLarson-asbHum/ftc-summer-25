@@ -191,28 +191,28 @@ class CRServoImplExFakeUnitTest {
                 final double speed1 = 2 * Math.PI / 2;
                 servo.setDirection(DcMotor.Direction.FORWARD);
                 servo.setPower(1.0);
-                servo.addAngularVel(speed1);
+                servo.addAngularVelOffset(speed1);
                 assertEquals(maxTickSpeed + speed1 * converson, servo.update(1));
                 
                 // Negative Forward
                 final double speed2 = -2 * Math.PI / 2;
                 servo.setDirection(DcMotor.Direction.FORWARD);
                 servo.setPower(1.0);
-                servo.addAngularVel(speed2);
+                servo.addAngularVelOffset(speed2);
                 assertEquals(maxTickSpeed + speed2 * converson, servo.update(1));
                 
                 // Positive Backward
                 final double speed3 = 2 * Math.PI / 2;
                 servo.setDirection(DcMotor.Direction.REVERSE);
                 servo.setPower(1.0);
-                servo.addAngularVel(speed3);
+                servo.addAngularVelOffset(speed3);
                 assertEquals(-maxTickSpeed + speed3 * converson, servo.update(1));
                 
                 // Negative Backward
                 final double speed4 = -2 * Math.PI / 2;
                 servo.setDirection(DcMotor.Direction.REVERSE);
                 servo.setPower(1.0);
-                servo.addAngularVel(speed4);
+                servo.addAngularVelOffset(speed4);
                 assertEquals(-maxTickSpeed + speed4 * converson, servo.update(1));
             }
 
@@ -226,12 +226,12 @@ class CRServoImplExFakeUnitTest {
                 final double originalDeltaTick = servo.update(1);
                 assertEquals(maxTickSpeed, originalDeltaTick);
 
-                servo.addAngularVel(2 * Math.PI);
+                servo.addAngularVelOffset(2 * Math.PI);
                 final double firstTransformedDeltaTick = servo.update(1);
                 assertNotEquals(maxTickSpeed, firstTransformedDeltaTick);
                 assertEquals(firstTransformedDeltaTick, servo.update(1));
 
-                servo.addAngularVel(2 * Math.PI);
+                servo.addAngularVelOffset(2 * Math.PI);
                 final double secondTransformedDeltaTick = servo.update(1);
                 assertNotEquals(firstTransformedDeltaTick, secondTransformedDeltaTick);
                 assertEquals(secondTransformedDeltaTick, servo.update(1));
@@ -276,21 +276,21 @@ class CRServoImplExFakeUnitTest {
 
             }
 
-            @DisplayName("Disabled servo affected by addAngularVel")
+            @DisplayName("Disabled servo affected by addAngularVelOffset")
             @Test 
-            void disabledAffectedByAddAngularVel() {
+            void disabledAffectedByaddAngularVelOffset() {
                 // final SetVelocityAndPower nestedTested = new AddVelocity();
-                // assumeTrue(!doesThrow(nestedTested::addAngularVelWithEncoder));
+                // assumeTrue(!doesThrow(nestedTested::addAngularVelOffsetWithEncoder));
 
                 servo.setPwmDisable();
                 final double delatTick = servo.update(1.0); // Should be 0
                 final double speed1 = 1;
-                servo.addAngularVel(speed1);
+                servo.addAngularVelOffset(speed1);
                 assertEquals(delatTick + speed1 / (2 * Math.PI), servo.update(1.0));
 
                 final double delatTick2 = servo.update(1.0);
                 final double speed2 = -1;
-                servo.addAngularVel(speed2);
+                servo.addAngularVelOffset(speed2);
                 assertEquals(delatTick2 + speed2 / (2 * Math.PI), servo.update(1.0));
             }
         
@@ -319,12 +319,12 @@ class CRServoImplExFakeUnitTest {
                 servo.setPwmDisable();
                 final double delatTick = servo.update(1.0); // Should be 0
                 final double speed1 = 1;
-                servo.addAngularVel(speed1);
+                servo.addAngularVelOffset(speed1);
                 assertEquals(delatTick + speed1 / (2 * Math.PI), servo.update(1.0));
 
                 final double delatTick2 = servo.update(1.0);
                 final double speed2 = -1;
-                servo.addAngularVel(speed2);
+                servo.addAngularVelOffset(speed2);
                 assertEquals(delatTick2 + speed2 / (2 * Math.PI), servo.update(1.0));
             }
         }
@@ -339,7 +339,7 @@ class CRServoImplExFakeUnitTest {
                 final double deltaRev = servo.update(1);
                 assertEquals(0, Math.abs(deltaRev));
 
-                servo.addAngularVel(-0.5 * maxSpeed * 2 * Math.PI);
+                servo.addAngularVelOffset(-0.5 * maxSpeed * 2 * Math.PI);
                 assertEquals(0, deltaRev + servo.update(1));
             }
 
@@ -350,7 +350,7 @@ class CRServoImplExFakeUnitTest {
                 final double deltaRev = servo.update(1);
                 assertEquals(0, Math.abs(deltaRev));
 
-                servo.addAngularVel(2 * maxSpeed * 2 * Math.PI);
+                servo.addAngularVelOffset(2 * maxSpeed * 2 * Math.PI);
                 final double affectedDeltaRev = servo.update(1);
                 assertNotEquals(deltaRev, affectedDeltaRev);
                 assertEquals(maxSpeed, affectedDeltaRev);
@@ -364,11 +364,11 @@ class CRServoImplExFakeUnitTest {
                 assertFloatEquals(0, Math.abs(deltaRev), 1e-10);
 
                 final double fraction = 0.7;
-                servo.addAngularVel(fraction * maxSpeed * 2 * Math.PI);
+                servo.addAngularVelOffset(fraction * maxSpeed * 2 * Math.PI);
                 final double affectedDeltaRev = servo.update(1);
                 assertFloatEquals(deltaRev, affectedDeltaRev, 1e-10);
                 
-                servo.addAngularVel(fraction * maxSpeed * 2 * Math.PI);
+                servo.addAngularVelOffset(fraction * maxSpeed * 2 * Math.PI);
                 final double affectedDeltaRev2 = servo.update(1);
                 assertNotEquals(deltaRev, Math.abs(affectedDeltaRev2));
                 assertFloatEquals(maxSpeed * (2 * fraction - 1), affectedDeltaRev2, 1e-1);
