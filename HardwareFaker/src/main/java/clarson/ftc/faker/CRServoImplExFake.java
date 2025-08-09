@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.hardware.ServoControllerEx;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.ServoConfigurationType;
 import com.qualcomm.robotcore.util.Range;
 
-public class CRServoImplExFake extends CRServoImplEx implements Rotateable, Updateable {
+public class CRServoImplExFake extends CRServoImplEx implements Updateable {
     private static ServoControllerEx fakeController = new ServoControllerEx() {
         public void pwmEnable() {}
         public void pwmDisable() {}

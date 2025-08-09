@@ -10,12 +10,41 @@ import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigu
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
+import java.util.Map;
+// import java.util.WeakHashMap;
 import java.util.HashMap;
 
 import static com.qualcomm.robotcore.hardware.HardwareDevice.Manufacturer;
 
 public class DcMotorControllerExFake implements DcMotorControllerEx {
-    protected HashMap<Integer, MotorData> motors = new HashMap<>(4, 1.0f);
+    protected Map<Integer, MotorData> motors = new HashMap<>(4, 1.0f);
+
+    /**
+     * Constructs a new DcMotorControllerExFake with the given motors instantly
+     * connected. 
+     * w
+     * @param motorData The motors and their data to be connected. The actuator
+     * field must point to a non-null motor with a valid `getPortNumber()` 
+     * return value.
+     */
+    public DcMotorControllerExFake(MotorData... motorData) {
+        super();
+        for(final MotorData motorDatum : motorData) {
+            this.connect(motorDatum);
+        }
+    }
+
+    /**
+     * Determines whether a motor can be connected to the given port. A port can
+     * be connected to if it is between 0-3 (inclusive) and the port is not 
+     * already occupied.
+     * 
+     * @param portNumber The port to check.
+     * @return Whether the port exists and is unnoccupied.
+     */
+    public boolean isPortAvailable(int portNumber) {
+        return !motors.containsKey(portNumber) && portNumber >= 0 && portNumber <= 3;
+    }
 
     /**
      * Attempts to connect the motor to this controller. The connection can fail 
@@ -27,15 +56,28 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
      * @return True if the the connection was succesfully completed. 
      */
     public boolean connect(MotorData motorData) {
-        if(
-            motors.containsKey(motorData.actuator.getPortNumber())
-            || motorData.actuator.getPortNumber() < 0
-            || motorData.actuator.getPortNumber() > 3
-        ) {
+        if(!isPortAvailable(motorData.actuator.getPortNumber())) {
             return false;
         }
 
         motors.put(motorData.actuator.getPortNumber(), motorData);
+        return true;
+    }
+    /**
+     * Attempts to connect the motor to this controller. The connection can fail 
+     * if the given port number is occupied. 
+     * 
+     * @param motorData Metadata for the motor to be connected. Does not need
+     * to have any specific `actuator` field value, as long as such `actuator`
+     * field is set to the desired motor later.
+     * @return True if the the connection was succesfully completed. 
+     */
+    public boolean connect(MotorData motorData, int portNumber) {
+        if(!isPortAvailable(portNumber)) {
+            return false;
+        }
+
+        motors.put(portNumber, motorData);
         return true;
     }
 
@@ -46,7 +88,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
      * @param port The port number at which the motor was connected.
      * @return The motor data at the given port.
      */
-    protected MotorData getData(int port) {
+    public MotorData getData(int port) {
         if(!motors.containsKey(port)) {
             throw new IllegalArgumentException("Attempted to access unconnected port <" + port + ">.");
         }
@@ -61,7 +103,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
      * @param port The port number at which the motor was connected.
      * @return The motor at the given port
      */
-    protected DcMotorImplEx getMotor(int port) {
+    public DcMotorImplEx getMotor(int port) {
         if(!motors.containsKey(port)) {
             throw new IllegalArgumentException("Attempted to access unconnected port <" + port + ">.");
         }
@@ -76,7 +118,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     @Override
     public void setMotorDisable(int port) {
-        getData(port).isEnabled = true;
+        getData(port).isEnabled = false;
     }
 
     @Override
@@ -86,7 +128,17 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     @Override
     public void setMotorVelocity(int port, double ticksPerSecond) {
-        getData(port).velocity = ticksPerSecond;
+        if(!getData(port).isEnabled) {
+            // Cannot send commands to a motor not able to receive them.
+            return;
+        }
+
+        if(getData(port).mode != DcMotor.RunMode.RUN_USING_ENCODER) {
+            // Cannot set velocity to a motor that doesn't not what velocity
+            return;
+        }
+
+        getData(port).unaffectedVelocity = ticksPerSecond;
     }
 
     @Override
@@ -101,12 +153,17 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     @Override
     public double getMotorVelocity(int port) {
-        return getData(port).velocity;
+        if(!getData(port).isEnabled) {
+            // When not enabled, the motor does not give or take any data.
+            return 0;
+        }
+
+        return getData(port).getActualVelocity();
     }
 
     @Override
     public double getMotorVelocity(int port, AngleUnit unit) {
-        return unit.fromDegrees(getData(port).velocity);
+        return unit.fromDegrees(getMotorVelocity(port) / getData(port).ticksPerRev * 360.0);
     }
 
     @Override
@@ -154,7 +211,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     @Override
     public double getMotorCurrentAlert(int port, CurrentUnit unit) {
-        return unit.convert(getMotor(port).getPower(), CurrentUnit.AMPS);
+        return unit.convert(getData(port).currentAlertAmps, CurrentUnit.AMPS);
     }
 
     @Override
@@ -169,6 +226,12 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     @Override
     public void setMotorType(int port, MotorConfigurationType motorType) {
+        if(isPortAvailable(port)) {
+            // FIXME: This is the only method that is this graceful, but we need it to be
+            //        DcMotorImplEx calls this method before we can connect anything, soooo... 
+            return;
+        }
+
         // This is only useful to DcMotorImplEx, which uses this to determine operational 
         // direction, that is, whether the motor naturally rotates clockwise or counter.
         getData(port).motorType = motorType;
@@ -181,6 +244,33 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
     
     @Override
     public void setMotorMode(int port, DcMotor.RunMode mode) {
+        if(mode == DcMotor.RunMode.STOP_AND_RESET_ENCODER) {
+            getData(port).power = 0;
+            getData(port).unaffectedVelocity = 0;
+            getData(port).position = 0;
+        }
+
+        if(mode == DcMotor.RunMode.RUN_TO_POSITION && !getData(port).isTargetSet) {
+            // If no target has been set, throw an exception
+            throw new RuntimeException("No target set before setting runMode to RUN_TO_POSITION");
+        }
+        
+        if(
+            getData(port).mode != DcMotor.RunMode.RUN_TO_POSITION 
+            || mode != DcMotor.RunMode.RUN_TO_POSITION
+        ) {
+            // Cleanup for when exiting RUN_TO_POSITION. Going to and from RUN_TO_POSITIOM doesn't count.
+            // NOTE: This also executes when going to RUN_TO_POSITION from a non-RUN_TO mode. 
+            // getData(port).runToFactor = 1;
+            getData(port).isBusy = false;
+            getData(port).isTargetSet = false;
+        }
+
+        if(mode == DcMotor.RunMode.RUN_TO_POSITION) {
+            getData(port).isBusy = true;
+            // getData(port).unaffectedVelocity = 0;
+        }
+
         getData(port).mode = mode;
     }
     
@@ -191,7 +281,13 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
     
     @Override
     public void setMotorPower(int port, double power) {
+        if(!getData(port).isEnabled) {
+            // Cannot send commands to a motor that isn't listening to them.
+            return;
+        }
+
         getData(port).power = power;
+        getData(port).unaffectedVelocity = power * getData(port).maxTicksPerSec;
     }
     
     @Override
@@ -216,7 +312,8 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
     
     @Override
     public boolean getMotorPowerFloat(int port) {
-        return getData(port).behavior == DcMotor.ZeroPowerBehavior.FLOAT;
+        return getData(port).behavior == DcMotor.ZeroPowerBehavior.FLOAT 
+            && getData(port).power == 0;
     }
     
     @Override
@@ -236,26 +333,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
     
     @Override
     public void resetDeviceConfigurationForOpMode(int port) {
-        final MotorData motor = getData(port); // May as well save the keyboard some stress.
-        motor.velocity = 0;
-        motor.power = 0;
-        motor.mode = DcMotor.RunMode.RUN_WITHOUT_ENCODER; 
-        motor.behavior = DcMotor.ZeroPowerBehavior.BRAKE;
-        
-        motor.tolerance = 5; // Ticks above or below the target, inclusive
-        motor.targetPosition = 0; // Ticks
-        motor.isEnabled = true;
-        motor.isBusy = false;
-        motor.isTargetSet = false;
-
-        motor.currentAlertAmps = 0; // Amperes
-        motor.motorType = null; // Not used by :HardwareFaker
-        motor.pidCoefficients.clear();
-        motor.pidCoefficients.put(DcMotor.RunMode.RUN_USING_ENCODER, new PIDCoefficients());
-        motor.pidCoefficients.put(DcMotor.RunMode.RUN_TO_POSITION, new PIDCoefficients());
-        motor.pidfCoefficients.clear();
-        motor.pidfCoefficients.put(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients());
-        motor.pidfCoefficients.put(DcMotor.RunMode.RUN_TO_POSITION, new PIDFCoefficients());
+        getData(port).copyAvailableProperties(new MotorData(null, 0, 0));    
     }
 
     @Override

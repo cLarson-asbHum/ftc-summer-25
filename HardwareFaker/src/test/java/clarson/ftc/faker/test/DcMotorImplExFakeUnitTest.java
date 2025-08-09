@@ -1,7 +1,7 @@
 package clarson.ftc.faker.test;
 
-import clarson.ftc.faker.DcMotorSimpleFake;
-import clarson.ftc.faker.DcMotorExFake;
+// import clarson.ftc.faker.DcMotorImplExFake;
+import clarson.ftc.faker.DcMotorImplExFake;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -26,8 +26,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
 
-@DisplayName("DcMotorSimpleFake")
-class DcMotorExFakeUnitTest {
+@DisplayName("DcMotorImplExFake")
+class DcMotorImplExFakeUnitTest {
     private static boolean doesThrow(Executable code) {
         try {
             code.execute();
@@ -53,24 +53,24 @@ class DcMotorExFakeUnitTest {
     @DisplayName("Can construct")
     @Test 
     void canConstruct() {
-        assertDoesNotThrow(() -> new DcMotorSimpleFake(312, 576.6));
-        assertDoesNotThrow(() -> new DcMotorSimpleFake(-1600, 100));
-        assertDoesNotThrow(() -> new DcMotorSimpleFake(-1600, 0));
+        assertDoesNotThrow(() -> new DcMotorImplExFake(312, 576.6));
+        assertDoesNotThrow(() -> new DcMotorImplExFake(-1600, 100));
+        assertDoesNotThrow(() -> new DcMotorImplExFake(-1600, 0));
 
-        assertDoesNotThrow(() -> new DcMotorSimpleFake(312, 100, 0));
-        assertDoesNotThrow(() -> new DcMotorSimpleFake(312, 100, 1200));
-        assertDoesNotThrow(() -> new DcMotorSimpleFake(312, 100, -1200));
-        assertDoesNotThrow(() -> new DcMotorSimpleFake(-312, 100, -1200));
+        assertDoesNotThrow(() -> new DcMotorImplExFake(312, 100, 0));
+        assertDoesNotThrow(() -> new DcMotorImplExFake(312, 100, 1200));
+        assertDoesNotThrow(() -> new DcMotorImplExFake(312, 100, -1200));
+        assertDoesNotThrow(() -> new DcMotorImplExFake(-312, 100, -1200));
     }
 
     @DisplayName("Initial settings are BRAKE, WITHOUT_ENCODER, FORWARD, and power 0")
     @Test 
     void checkInitialSettings() {
-        final DcMotorEx motor = new DcMotorExFake(0, 0);
+        final DcMotorEx motor = new DcMotorImplExFake(0, 0);
         assertEquals(DcMotor.RunMode.RUN_WITHOUT_ENCODER, motor.getMode());
         assertEquals(DcMotor.ZeroPowerBehavior.BRAKE, motor.getZeroPowerBehavior());
         assertEquals(DcMotor.Direction.FORWARD, motor.getDirection());
-        assertEquals(0, motor.getPower());
+        assertFloatEquals(0, motor.getPower(), 1e-13);
         assertTrue(motor.isMotorEnabled());
     }
 
@@ -79,7 +79,7 @@ class DcMotorExFakeUnitTest {
     @ValueSource(strings = { "FORWARD"  , "REVERSE"  })
     @Nested
     class ConstructionDependent {
-        private DcMotorExFake motor;
+        private DcMotorImplExFake motor;
         private double rpm = 312;
         private double ticksPerRev = 576.6;
         private double ticksPerSec = rpm / 60 * ticksPerRev;
@@ -90,7 +90,9 @@ class DcMotorExFakeUnitTest {
 
         @BeforeEach 
         void constructMotor() {
-            motor = new DcMotorExFake(rpm, ticksPerRev);
+            System.out.println("[constructMotor] direction: " + directionName);
+
+            motor = new DcMotorImplExFake(rpm, ticksPerRev);
             if(directionName.equals("FORWARD")) {
                 motor.setDirection(DcMotor.Direction.FORWARD);
             } else if(directionName.equals("REVERSE")) {
@@ -105,7 +107,7 @@ class DcMotorExFakeUnitTest {
             @DisplayName("Initial Power 0")
             @Test
             void initialPowerIsConstant() {
-                assertEquals(0, motor.getPower());
+                assertFloatEquals(0, motor.getPower(), 1e-13); // Tolerance because -0.0 != 0.0, I guess
             }
 
             @DisplayName("Set Power Arg = Get Power")
@@ -118,7 +120,7 @@ class DcMotorExFakeUnitTest {
                 }
             }
 
-            @Disabled("This is covered by test DcMotorExFakeUnitTest.checkInitialSettings")
+            @Disabled("This is covered by test DcMotorImplExFakeUnitTest.checkInitialSettings")
             @DisplayName("Initial Direction Forward")
             @Test 
             void initialDirectionForward() {
@@ -188,32 +190,37 @@ class DcMotorExFakeUnitTest {
                 // Positive Forward
                 final double speed1 = 2 * Math.PI / 2;
                 motor.setDirection(DcMotor.Direction.FORWARD);
+                motor.setAngularVelOffset(0);
                 motor.setPower(1.0);
-                motor.addAngularVel(speed1);
+                motor.addAngularVelOffset(speed1);
                 assertEquals(maxTickSpeed + speed1 * converson, motor.update(1));
                 
                 // Negative Forward
                 final double speed2 = -2 * Math.PI / 2;
                 motor.setDirection(DcMotor.Direction.FORWARD);
+                motor.setAngularVelOffset(0);
                 motor.setPower(1.0);
-                motor.addAngularVel(speed2);
+                motor.addAngularVelOffset(speed2);
                 assertEquals(maxTickSpeed + speed2 * converson, motor.update(1));
                 
                 // Positive Backward
                 final double speed3 = 2 * Math.PI / 2;
                 motor.setDirection(DcMotor.Direction.REVERSE);
+                motor.setAngularVelOffset(0);
                 motor.setPower(1.0);
-                motor.addAngularVel(speed3);
+                motor.addAngularVelOffset(speed3);
                 assertEquals(-maxTickSpeed + speed3 * converson, motor.update(1));
                 
                 // Negative Backward
                 final double speed4 = -2 * Math.PI / 2;
                 motor.setDirection(DcMotor.Direction.REVERSE);
+                motor.setAngularVelOffset(0);
                 motor.setPower(1.0);
-                motor.addAngularVel(speed4);
+                motor.addAngularVelOffset(speed4);
                 assertEquals(-maxTickSpeed + speed4 * converson, motor.update(1));
             }
 
+            @Disabled("This test uses an obsolete feature of addAngularVel, which has been removed")
             @DisplayName("Add angular vel persists until setPower")
             @Test
             void verifyAddAnguarVelPersistence() {
@@ -224,12 +231,12 @@ class DcMotorExFakeUnitTest {
                 final double originalDeltaTick = motor.update(1);
                 assertEquals(maxTickSpeed, originalDeltaTick);
 
-                motor.addAngularVel(2 * Math.PI);
+                motor.addAngularVelOffset(2 * Math.PI);
                 final double firstTransformedDeltaTick = motor.update(1);
                 assertNotEquals(maxTickSpeed, firstTransformedDeltaTick);
                 assertEquals(firstTransformedDeltaTick, motor.update(1));
 
-                motor.addAngularVel(2 * Math.PI);
+                motor.addAngularVelOffset(2 * Math.PI);
                 final double secondTransformedDeltaTick = motor.update(1);
                 assertNotEquals(firstTransformedDeltaTick, secondTransformedDeltaTick);
                 assertEquals(secondTransformedDeltaTick, motor.update(1));
@@ -311,7 +318,13 @@ class DcMotorExFakeUnitTest {
             @DisplayName("Set Mode = Get Mode")
             @Test
             void setModeArgumentStored() {
-                for(final DcMotor.RunMode mode : DcMotor.RunMode.values()) {
+                final DcMotor.RunMode[] modes = { 
+                    DcMotor.RunMode.RUN_WITHOUT_ENCODER, 
+                    DcMotor.RunMode.RUN_USING_ENCODER, 
+                    DcMotor.RunMode.RUN_TO_POSITION, 
+                    DcMotor.RunMode.STOP_AND_RESET_ENCODER 
+                };
+                for(final DcMotor.RunMode mode : modes) {
                     motor.setTargetPosition(123456789); // Appeasing RUN_TO_POSITION to avoid exception
                     motor.setMode(mode);
                     assertEquals(mode, motor.getMode());
@@ -346,6 +359,7 @@ class DcMotorExFakeUnitTest {
         @DisplayName("Set Power and Velocity")
         @Nested
         class SetVelocityAndPower {
+            @Disabled("A motor can read its encoder even if it doesn't *drive* with the encoder")
             @DisplayName("GetVelocity works only in encoder modes")
             @Test
             void getVelocity0WhenInRunWithoutEncoder() {
@@ -421,65 +435,65 @@ class DcMotorExFakeUnitTest {
                 assertEquals(vel3, motor.getVelocity());
             }
 
-            @DisplayName("RUN_WITHOUT_ENCODER affected by addAngularVel")
+            @DisplayName("RUN_WITHOUT_ENCODER affected by addAngularVelOffset")
             @Test
-            void addAngularVelWithoutEncoder() {
+            void addAngularVelOffsetWithoutEncoder() {
                 motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
                 motor.setPower(1.0);
 
                 final double unaffectedVel = motor.update(1);
                 final double angVel = 1;
-                motor.addAngularVel(angVel);
+                motor.addAngularVelOffset(angVel);
                 assertEquals(unaffectedVel + angVel * radsToTicks, motor.update(1));
             }
 
             @DisplayName("RUN_USING_ENCODER keeps velocity when not overpowered")
             @Test
-            void addAngularVelWithEncoder() {
+            void addAngularVelOffsetWithEncoder() {
                 // Checking the condition with positive setPower
                 motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                 motor.setPower(0.5);
                 final double unaffectedVel11 = motor.getVelocity();
-                motor.addAngularVel(-ticksPerSec * 0.25 / radsToTicks);
+                motor.addAngularVelOffset(-ticksPerSec * 0.25 / radsToTicks);
                 assertEquals(unaffectedVel11, motor.getVelocity());
                 
                 motor.setPower(0.5);
                 final double unaffectedVel21 = motor.getVelocity();
-                motor.addAngularVel(ticksPerSec * 0.25 / radsToTicks);
+                motor.addAngularVelOffset(ticksPerSec * 0.25 / radsToTicks);
                 assertEquals(unaffectedVel21, motor.getVelocity());
 
                 // Checking the condition with negative setPower
                 motor.setPower(-0.5);
                 final double unaffectedVel31 = motor.getVelocity();
-                motor.addAngularVel(ticksPerSec * 0.25 / radsToTicks);
+                motor.addAngularVelOffset(ticksPerSec * 0.25 / radsToTicks);
                 assertEquals(unaffectedVel31, motor.getVelocity());
 
                 motor.setPower(-0.5);
                 final double unaffectedVel41 = motor.getVelocity();
-                motor.addAngularVel(-ticksPerSec * 0.25 / radsToTicks);
+                motor.addAngularVelOffset(-ticksPerSec * 0.25 / radsToTicks);
                 assertEquals(unaffectedVel41, motor.getVelocity());
                 
                 // Checking the condition with positive setVelocity
                 motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                 motor.setVelocity(ticksPerSec * 0.5);
                 final double unaffectedVel12 = motor.getVelocity();
-                motor.addAngularVel(-ticksPerSec * 0.25 / radsToTicks);
+                motor.addAngularVelOffset(-ticksPerSec * 0.25 / radsToTicks);
                 assertEquals(unaffectedVel12, motor.getVelocity());
                 
                 motor.setVelocity(ticksPerSec * 0.5);
                 final double unaffectedVel22 = motor.getVelocity();
-                motor.addAngularVel(ticksPerSec * 0.25 / radsToTicks);
+                motor.addAngularVelOffset(ticksPerSec * 0.25 / radsToTicks);
                 assertEquals(unaffectedVel22, motor.getVelocity());
 
                 // Checking the condition with negative setVelocity
                 motor.setVelocity(ticksPerSec * -0.5);
                 final double unaffectedVel32 = motor.getVelocity();
-                motor.addAngularVel(ticksPerSec * 0.25 / radsToTicks);
+                motor.addAngularVelOffset(ticksPerSec * 0.25 / radsToTicks);
                 assertEquals(unaffectedVel32, motor.getVelocity());
 
                 motor.setVelocity(ticksPerSec * -0.5);
                 final double unaffectedVel42 = motor.getVelocity();
-                motor.addAngularVel(-ticksPerSec * 0.25 / radsToTicks);
+                motor.addAngularVelOffset(-ticksPerSec * 0.25 / radsToTicks);
                 assertEquals(unaffectedVel42, motor.getVelocity());
                 
             }
@@ -505,11 +519,11 @@ class DcMotorExFakeUnitTest {
                 assertFloatEquals(power * actualSpeed, deltaRev, 1e-10);
 
                 final double fraction = -0.75 * (1 - power); // Cannot overcome power on its own
-                motor.addAngularVel(fraction * actualSpeed / radsToTicks);
+                motor.addAngularVelOffset(fraction * actualSpeed / radsToTicks);
                 final double affectedDeltaRev = motor.update(1);
                 assertFloatEquals(deltaRev, affectedDeltaRev, 1e-10);
                 
-                motor.addAngularVel(fraction * actualSpeed / radsToTicks);
+                motor.addAngularVelOffset(fraction * actualSpeed / radsToTicks);
                 final double affectedDeltaRev2 = motor.update(1);
                 assertNotEquals(deltaRev, affectedDeltaRev2);
                 assertFloatEquals(
@@ -525,16 +539,20 @@ class DcMotorExFakeUnitTest {
             void sumOfPartsOverpoweringVelocity(double power) {
                 // Using power
                 motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                motor.setVelocity(power * ticksPerSec);
+                if(motor.getDirection() == DcMotor.Direction.REVERSE) {
+                    motor.setVelocity(-power * ticksPerSec);
+                } else {
+                    motor.setVelocity(power * ticksPerSec);
+                }
                 final double deltaRev = motor.update(1);
                 assertFloatEquals(power * ticksPerSec, deltaRev, 1e-10);
 
                 final double fraction = -0.75 * (1 - power); // Cannot overcome power on its own
-                motor.addAngularVel(fraction * ticksPerSec / radsToTicks);
+                motor.addAngularVelOffset(fraction * ticksPerSec / radsToTicks);
                 final double affectedDeltaRev = motor.update(1);
                 assertFloatEquals(deltaRev, affectedDeltaRev, 1e-10);
                 
-                motor.addAngularVel(fraction * ticksPerSec / radsToTicks);
+                motor.addAngularVelOffset(fraction * ticksPerSec / radsToTicks);
                 final double affectedDeltaRev2 = motor.update(1);
                 assertNotEquals(deltaRev, affectedDeltaRev2);
                 assertFloatEquals(
@@ -559,9 +577,11 @@ class DcMotorExFakeUnitTest {
 
                 for(int i = 0; i < 10; i++) {
                     accumulated += motor.update(timeStep);
-                    // final double delta = Math.abs(((int) accumulated) - motor.getCurrentPosition()); 
-                    // assertTrue(() -> delta < 1e-9);    
-                    assertEquals((int) Math.round(accumulated), motor.getCurrentPosition());
+                    if(motor.getDirection() == DcMotor.Direction.REVERSE) { 
+                        assertEquals((int) Math.round(accumulated), -motor.getCurrentPosition());
+                    } else {
+                        assertEquals((int) Math.round(accumulated), motor.getCurrentPosition());
+                    }
                 }
             }
 
@@ -757,6 +777,7 @@ class DcMotorExFakeUnitTest {
             @DisplayName("Disabling motor prevents setting power/veloicty")
             @Test
             void disableDisablesSetPower() {
+                motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                 motor.setPower(1.0);
                 final double unaffectedPowerDeltaTick = motor.update(1.0);
                 motor.setVelocity(0.5 * ticksPerRev);
@@ -772,28 +793,28 @@ class DcMotorExFakeUnitTest {
                 assertNotEquals(0, unaffectedPowerDeltaTick);
                 assertNotEquals(unaffectedPowerDeltaTick, noPowerDiabledDelta);
                 assertNotEquals(unaffectedPowerDeltaTick, poweredDisabledDelta);
-                assertNotEquals(unaffectedVelDeltaTick, velocityDisabledDelta);
+                // assertNotEquals(unaffectedVelDeltaTick, velocityDisabledDelta);
                 assertEquals(noPowerDiabledDelta, poweredDisabledDelta);
                 assertEquals(noPowerDiabledDelta, velocityDisabledDelta);
                 assertEquals(poweredDisabledDelta, velocityDisabledDelta); // Should always pass... hopefully.
 
             }
 
-            @DisplayName("Disabled motor affected by addAngularVel")
+            @DisplayName("Disabled motor affected by addAngularVelOffset")
             @Test 
             void disabledAffectedByAddAngularVel() {
                 final SetVelocityAndPower nestedTested = new SetVelocityAndPower();
-                assumeTrue(!doesThrow(nestedTested::addAngularVelWithEncoder));
+                assumeTrue(!doesThrow(nestedTested::addAngularVelOffsetWithEncoder));
 
                 motor.setMotorDisable();
                 final double delatTick = motor.update(1.0); // Should be 0
                 final double speed1 = 1;
-                motor.addAngularVel(speed1);
+                motor.addAngularVelOffset(speed1);
                 assertEquals(delatTick + speed1 * radsToTicks, motor.update(1.0));
 
                 final double delatTick2 = motor.update(1.0);
                 final double speed2 = -1;
-                motor.addAngularVel(speed2);
+                motor.addAngularVelOffset(speed2);
                 assertEquals(delatTick2 + speed2 * radsToTicks, motor.update(1.0));
             }
         

@@ -23,6 +23,7 @@ import static com.qualcomm.robotcore.hardware.PwmControl.PwmRange;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
 
+@Disabled("These tests reference an obsolete implementation of CRServo")
 class CRServoImplExFakeUnitTest {
     private static boolean doesThrow(Executable code) {
         try {
