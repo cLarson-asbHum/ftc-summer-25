@@ -190,13 +190,26 @@ public class ServoControllerExFake implements ServoControllerEx {
 
     @Override
     public void setServoPosition(int portNumber, double position) {
+        if(!getData(portNumber).isEnabled) {
+            return;
+        }
+
         if(getData(portNumber).isContinuous()) {
             final ContinuousServoData servo = (ContinuousServoData) getData(portNumber);
             servo.power = 2 * pwmPowerFromPosition(servo, position);
             servo.unaffectedVelocity = servo.power * servo.maxRevsPerSec;
+            servo.isTargetSet = true;
+
+            //#region DEV START: Logging the values 
+            
+            // System.out.println("[set servo position] position: " + position);
+            System.out.println("[set servo position] power: " + servo.power);
+            // System.out.println("[set servo position] velocity:" + servo.unaffectedVelocity);
+            //#endregion DEV END
         } else if(getData(portNumber).isPositional()) {
             final PositionalServoData servo = (PositionalServoData) getData(portNumber);
             servo.targetPosition = servo.maxPosition * (0.5 + pwmPowerFromPosition(servo, position));
+            servo.isTargetSet = true;
         } else {
             throw new ClassCastException("servoData.actuator must be instance of CRServoImplEx or ServoImplEx");
         }
@@ -228,7 +241,7 @@ public class ServoControllerExFake implements ServoControllerEx {
 
     @Override
     public void setServoPwmEnable(int portNumber) {
-        getData(portNumber).isEnabled = false;
+        getData(portNumber).isEnabled = true;
     }
 
     @Override
@@ -243,6 +256,13 @@ public class ServoControllerExFake implements ServoControllerEx {
 
     @Override
     public void setServoType(int portNumber, ServoConfigurationType servoType) {
+        if(isPortAvailable(portNumber)) {
+            // FIXME: This is the only method that is this graceful, but we need it to be
+            //        DcMotorImplEx calls this method before we can connect anything, soooo... 
+            return;
+        }
+
+        // This isn't usefult for ANYTHING, but someone probably uses it.
         getData(portNumber).servoType = servoType;
     }
 
@@ -317,6 +337,10 @@ public class ServoControllerExFake implements ServoControllerEx {
             data.range.usPulseLower, 
             data.range.usPulseUpper
         );
+
+        System.out.println("[pwm power position] midpoint: " + midpoint);
+        System.out.println("[pwm power position] length: " + length);
+        System.out.println("[pwm power position] pwmMicros: " + pwmMicros);
 
         return (pwmMicros - midpoint) / length;
     }

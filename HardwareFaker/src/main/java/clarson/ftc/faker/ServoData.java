@@ -98,7 +98,7 @@ abstract public class ServoData<T extends HardwareDevice> implements Rotateable,
      * angular velocity persists until the next call to setAngularVelOffset().
      * 
      * @param thetaPrime Added angular velocity offset, in radians per second.
-     * @return The new velocity, in ticks per second.
+     * @return The new velocity, in reovlutions per second.
      */
     public double addAngularVelOffset(double thetaPrime) {
         return setAngularVelOffset(thetaPrime + this.accumulatedVelOffset * (2 * Math.PI));
@@ -130,7 +130,7 @@ abstract public class ServoData<T extends HardwareDevice> implements Rotateable,
      * which will override this angular velocity offset
      * 
      * @param thetaPrime The new angular velocity offset, in radians per second.
-     * @return The new velocity, in ticks per second.
+     * @return The new velocity, in revolutions per second.
      */
     public double setAngularVelOffset(double thetaPrime) {
         this.accumulatedVelOffset = thetaPrime / (2 * Math.PI);

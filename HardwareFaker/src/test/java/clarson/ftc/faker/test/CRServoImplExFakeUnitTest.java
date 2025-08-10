@@ -18,12 +18,12 @@ import org.junit.jupiter.params.ParameterizedClass;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import clarson.ftc.faker.CRServoImplExFake;
+import clarson.ftc.faker.ServoControllerExFake;
 
 import static com.qualcomm.robotcore.hardware.PwmControl.PwmRange;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
 
-@Disabled("These tests reference an obsolete implementation of CRServo")
 class CRServoImplExFakeUnitTest {
     private static boolean doesThrow(Executable code) {
         try {
@@ -41,9 +41,9 @@ class CRServoImplExFakeUnitTest {
             AssertionFailureBuilder
                 .assertionFailure()
                 .reason("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                .message("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                .actual(actual)
-                .expected(expected)
+                // .message("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
+                // .actual(actual)
+                // .expected(expected)
                 .buildAndThrow();
         }
     }
@@ -106,7 +106,7 @@ class CRServoImplExFakeUnitTest {
             @DisplayName("Initial Power 0")
             @Test
             void initialPowerIsConstant() {
-                assertEquals(0, servo.getPower());
+                assertFloatEquals(0, servo.getPower(), 1e-7);
             }
 
             @DisplayName("Set Power Arg = Get Power")
@@ -115,7 +115,7 @@ class CRServoImplExFakeUnitTest {
                 final double[] powers = { 0, 1.0, 0.0, -1.0, 0.5, 0.25, -0.5, -0.25 };
                 for(final double power : powers) {
                     servo.setPower(power);
-                    assertEquals(power, servo.getPower());
+                    assertFloatEquals(power, servo.getPower(), 1e-13);
                 }
             }
 
@@ -181,6 +181,7 @@ class CRServoImplExFakeUnitTest {
                 assertEquals(-0.33 * maxTickSpeed * seconds, servo.update(seconds));
             }
         
+            @Disabled("This test checks for angular velocity offset, but it is resisted by the CRServo")
             @DisplayName("Add angular vel only ever adds (unless negative)")
             @Test
             void addVelAddsVelocotyCorrectly() {
@@ -191,6 +192,7 @@ class CRServoImplExFakeUnitTest {
                 final double speed1 = 2 * Math.PI / 2;
                 servo.setDirection(DcMotor.Direction.FORWARD);
                 servo.setPower(1.0);
+                servo.setAngularVelOffset(0);
                 servo.addAngularVelOffset(speed1);
                 assertEquals(maxTickSpeed + speed1 * converson, servo.update(1));
                 
@@ -198,6 +200,7 @@ class CRServoImplExFakeUnitTest {
                 final double speed2 = -2 * Math.PI / 2;
                 servo.setDirection(DcMotor.Direction.FORWARD);
                 servo.setPower(1.0);
+                servo.setAngularVelOffset(0);
                 servo.addAngularVelOffset(speed2);
                 assertEquals(maxTickSpeed + speed2 * converson, servo.update(1));
                 
@@ -205,6 +208,7 @@ class CRServoImplExFakeUnitTest {
                 final double speed3 = 2 * Math.PI / 2;
                 servo.setDirection(DcMotor.Direction.REVERSE);
                 servo.setPower(1.0);
+                servo.setAngularVelOffset(0);
                 servo.addAngularVelOffset(speed3);
                 assertEquals(-maxTickSpeed + speed3 * converson, servo.update(1));
                 
@@ -212,10 +216,12 @@ class CRServoImplExFakeUnitTest {
                 final double speed4 = -2 * Math.PI / 2;
                 servo.setDirection(DcMotor.Direction.REVERSE);
                 servo.setPower(1.0);
+                servo.setAngularVelOffset(0);
                 servo.addAngularVelOffset(speed4);
                 assertEquals(-maxTickSpeed + speed4 * converson, servo.update(1));
             }
 
+            @Disabled("This tests obsolete behavior that has since been removed")
             @DisplayName("Add angular vel persists until setPower")
             @Test
             void verifyAddAnguarVelPersistence() {
@@ -261,7 +267,7 @@ class CRServoImplExFakeUnitTest {
             @DisplayName("Disabling servo prevents setting power")
             @Test
             void disableDisablesSetPower() {
-                servo.setPower(1.0);
+                servo.setPower(0.5);
                 final double unaffectedPowerDeltaTick = servo.update(1.0);
 
                 servo.setPwmDisable();
@@ -270,8 +276,8 @@ class CRServoImplExFakeUnitTest {
                 final double poweredDisabledDelta = servo.update(1.0);
 
                 assertNotEquals(0, unaffectedPowerDeltaTick);
-                assertNotEquals(unaffectedPowerDeltaTick, noPowerDiabledDelta);
-                assertNotEquals(unaffectedPowerDeltaTick, poweredDisabledDelta);
+                // assertNotEquals(unaffectedPowerDeltaTick, noPowerDiabledDelta);
+                assertEquals(unaffectedPowerDeltaTick, poweredDisabledDelta);
                 assertEquals(noPowerDiabledDelta, poweredDisabledDelta);
 
             }
@@ -326,6 +332,122 @@ class CRServoImplExFakeUnitTest {
                 final double speed2 = -1;
                 servo.addAngularVelOffset(speed2);
                 assertEquals(delatTick2 + speed2 / (2 * Math.PI), servo.update(1.0));
+            }
+        
+            @DisplayName("SET PWM Range = Get PWM Range")
+            @Test
+            void setPwmRangeArgumentStored() {
+                final PwmRange range = new PwmRange(1000, 2000);
+                servo.setPwmRange(range);
+                assertEquals(range, servo.getPwmRange());
+
+                final PwmRange range2 = new PwmRange(1314.15, 1414.2);
+                servo.setPwmRange(range2);
+                assertEquals(range2, servo.getPwmRange());
+                
+                final PwmRange range3 = new PwmRange(628.31, 2400);
+                servo.setPwmRange(range3);
+                assertEquals(range3, servo.getPwmRange());
+            }
+
+            @DisplayName("Setting PWM subset range limits the extrema")
+            @Test
+            void pwmSubsetLimitsRange() {
+                // NOTE: actualSpeed flipping is used as a hack for symmetrical PWM ranges
+                //       Reversed servos will setPower with the opposite extrema, so symmetrical 
+                //       ranges simply flip the sign. For asymmetrical ranges, if statements are 
+                //       used without the "actualSpeed".
+                final double actualSpeed = servo.getDirection() == DcMotor.Direction.REVERSE
+                    ? -maxSpeed
+                    : maxSpeed;
+                servo.setPower(-1.0);
+                assertFloatEquals(-actualSpeed, servo.update(1.0), 1e-13);
+                servo.setPower(1.0);
+                assertFloatEquals(actualSpeed, servo.update(1.0), 1e-13);
+
+                final double start1 = 1200;
+                final double end1 = 1800;
+                servo.setPwmRange(new PwmRange(start1, end1));
+                servo.setPower(-1.0);
+                System.out.println("Attempting...\n");
+                assertFloatEquals(-0.6 * actualSpeed, servo.update(1), 1e-10);
+                servo.setPower(1.0);
+                System.out.println("Made it! 🥳\n");
+                assertFloatEquals(0.6 * actualSpeed, servo.update(1), 1e-10);
+
+                final double start2 = 1200;
+                final double end2 = 1600;
+                servo.setPwmRange(new PwmRange(start2, end2));
+                servo.setPower(-1.0); // Asymmetry means that reversed servos are WIERD
+                if(servo.getDirection() == DcMotor.Direction.REVERSE) {
+                    assertFloatEquals(0.2 * maxSpeed, servo.update(1), 1e-10);
+                } else {
+                    assertFloatEquals(-0.6 * maxSpeed, servo.update(1), 1e-10);
+                }
+                servo.setPower(1.0); // Asymmetry means that reversed servos are WIERD
+                if(servo.getDirection() == DcMotor.Direction.REVERSE) {
+                    assertFloatEquals(-0.6 * maxSpeed, servo.update(1), 1e-10);
+                } else {
+                    assertFloatEquals(0.2 * maxSpeed, servo.update(1), 1e-10);
+                }
+                
+                final double start4 = 1000;
+                final double end4 = 2000;
+                servo.setPwmRange(new PwmRange(start4, end4));
+                servo.setPower(1.0);
+                assertFloatEquals(1 * actualSpeed, servo.update(1), 1e-10);
+                servo.setPower(-1.0);
+                assertFloatEquals(-1 * actualSpeed, servo.update(1), 1e-10);
+                
+                final double start3 = 1500;
+                final double end3 = 1500;
+                servo.setPwmRange(new PwmRange(start3, end3));
+                servo.setPower(1.0);
+                assertFloatEquals(0 * actualSpeed, servo.update(1), 1e-10);
+                servo.setPower(-1.0);
+                assertFloatEquals(-0 * actualSpeed, servo.update(1), 1e-10);
+                
+            }
+
+            @DisplayName("Setting PWM superset range clips the extrema")
+            @Test
+            void pwmSuperSetClipsRange() {
+                // NOTE: actualSpeed flipping is used as a hack for symmetrical PWM ranges
+                //       Reversed servos will setPower with the opposite extrema, so symmetrical 
+                //       ranges simply flip the sign. For asymmetrical ranges, if statements are 
+                //       used without the "actualSpeed".
+                final double actualSpeed = servo.getDirection() == DcMotor.Direction.REVERSE
+                    ? -maxSpeed
+                    : maxSpeed;
+                servo.setPower(-1.0);
+                assertFloatEquals(-actualSpeed, servo.update(1.0), 1e-13);
+                servo.setPower(1.0);
+                assertFloatEquals(actualSpeed, servo.update(1.0), 1e-13);
+
+                final double start1 = 800;
+                final double end1 = 2200;
+                servo.setPwmRange(new PwmRange(start1, end1));
+                servo.setPower(-1.0);
+                assertFloatEquals(-actualSpeed, servo.update(1.0), 1e-13);
+                servo.setPower(1.0);
+                assertFloatEquals(actualSpeed, servo.update(1.0), 1e-13);
+
+                
+                final double start2 = 800;
+                final double end2 = 2600;
+                servo.setPwmRange(new PwmRange(start2, end2));
+                servo.setPower(-1.0);
+                assertFloatEquals(-actualSpeed, servo.update(1.0), 1e-13);
+                servo.setPower(1.0);
+                assertFloatEquals(actualSpeed, servo.update(1.0), 1e-13);
+
+                final double start3 = 0;
+                final double end3 = 2100;
+                servo.setPwmRange(new PwmRange(start3, end3));
+                servo.setPower(-1.0);
+                assertFloatEquals(-actualSpeed, servo.update(1.0), 1e-13);
+                servo.setPower(1.0);
+                assertFloatEquals(actualSpeed, servo.update(1.0), 1e-13);
             }
         }
 

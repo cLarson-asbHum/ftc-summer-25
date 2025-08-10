@@ -7,7 +7,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
 
 public class CRServoImplExFake extends CRServoImplEx implements Rotateable, Updateable {
     public final static ServoConfigurationType getFakeConfiguration(ContinuousServoData data) {
-        return ServoConfigurationType.getStandardServoType();
+        return new ServoConfigurationType();
     }
 
     /**
