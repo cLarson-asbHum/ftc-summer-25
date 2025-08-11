@@ -38,6 +38,7 @@ public class PositionalServoData extends ServoData<ServoImplEx> {
     public double tolerance = 5.0 / 360.0; // Revolutions above or below the target, inclusive
     public double targetPosition = 0; // Revolutions. On interval [0, maxPosition]
     private double runToFactor = 1;
+    private boolean wasPreviouslyInRange = false;
 
     public PositionalServoData(double rpm, double maxRevolutions) {
         this(null, rpm, maxRevolutions);
@@ -119,7 +120,7 @@ public class PositionalServoData extends ServoData<ServoImplEx> {
         // Getting the speed factor
         double reverseFactor = 1; // Reverse at a lower speed if the target is missed.
         if((this.targetPosition - this.position) / vel < 0 && this.runToFactor == 1) {
-            // Reversing the power so wer alsways start in the correct direction
+            // Reversing the power so we always start in the correct direction
             reverseFactor *= -1;
         } else if((this.targetPosition - this.position) / vel < 0) {
             reverseFactor *= -0.5; // Put it in reverse, Ter! ...and put half the previous speed
@@ -135,24 +136,41 @@ public class PositionalServoData extends ServoData<ServoImplEx> {
 
     @Override
     public double update(double deltaSec) {
+        final double startPosition = position;
         final double actualVel = getActualVelocity();
         final double delta = actualVel * deltaSec;
-        this.position += delta;
+        this.position = Range.clip(startPosition + delta, 0, maxPosition);
 
-        // Ending run to position when within the target
+        // Reseting the run to factor to move quickly to position. 
         if(
             this.isEnabled 
-            && this.isTargetSet 
+            && this.isTargetSet
+            && wasPreviouslyInRange 
             && Math.abs(this.position - this.targetPosition) > this.tolerance
         ) {
             // this.isTargetSet = false;
             this.runToFactor = 1;
         }
 
+        // Stopping the servo if we get in range
+        if(
+            this.isEnabled
+            && this.isTargetSet
+            && Math.abs(this.position - this.targetPosition) <= this.tolerance
+        ) {
+            this.unaffectedVelocity = 0;
+            this.runToFactor = 1; // Reset for next time.
+        }
+
         // Updating the velocity if the postion is off
-        if(this.isEnabled && this.isTargetSet) {
+        if(
+            this.isEnabled 
+            && this.isTargetSet
+            && Math.abs(this.position - this.targetPosition) >= this.tolerance
+        ) {
+            wasPreviouslyInRange = Math.abs(this.position - this.targetPosition) <= this.tolerance;
             this.updateRunToVelocity(actualVel);
         }
-        return delta;
+        return this.position - startPosition;
     }
 }

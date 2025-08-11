@@ -64,6 +64,8 @@ class CRServoImplExFakeUnitTest {
         assertDoesNotThrow(() -> new CRServoImplExFake(312, 1200, new PwmRange(0, 100, 40)));
         assertDoesNotThrow(() -> new CRServoImplExFake(-312, -1200, new PwmRange(100, 98300)));
         assertDoesNotThrow(() -> new CRServoImplExFake(312, -1200, new PwmRange(1000, 98300, 40)));
+
+        // TODO: test the other implementations!
     }
 
     @DisplayName("Initial settings are FORWARD, enabled, and power 0")
@@ -276,8 +278,8 @@ class CRServoImplExFakeUnitTest {
                 final double poweredDisabledDelta = servo.update(1.0);
 
                 assertNotEquals(0, unaffectedPowerDeltaTick);
-                // assertNotEquals(unaffectedPowerDeltaTick, noPowerDiabledDelta);
-                assertEquals(unaffectedPowerDeltaTick, poweredDisabledDelta);
+                assertNotEquals(unaffectedPowerDeltaTick, noPowerDiabledDelta);
+                assertNotEquals(unaffectedPowerDeltaTick, poweredDisabledDelta);
                 assertEquals(noPowerDiabledDelta, poweredDisabledDelta);
 
             }

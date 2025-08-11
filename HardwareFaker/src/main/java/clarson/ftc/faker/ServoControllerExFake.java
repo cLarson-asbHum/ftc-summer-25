@@ -196,19 +196,21 @@ public class ServoControllerExFake implements ServoControllerEx {
 
         if(getData(portNumber).isContinuous()) {
             final ContinuousServoData servo = (ContinuousServoData) getData(portNumber);
-            servo.power = 2 * pwmPowerFromPosition(servo, position);
+            servo.power = Range.clip(2 * pwmPowerFromPosition(servo, position), -1.0, 1.0);
             servo.unaffectedVelocity = servo.power * servo.maxRevsPerSec;
             servo.isTargetSet = true;
 
             //#region DEV START: Logging the values 
             
             // System.out.println("[set servo position] position: " + position);
-            System.out.println("[set servo position] power: " + servo.power);
+            // System.out.println("[set servo position] power: " + servo.power);
             // System.out.println("[set servo position] velocity:" + servo.unaffectedVelocity);
             //#endregion DEV END
         } else if(getData(portNumber).isPositional()) {
             final PositionalServoData servo = (PositionalServoData) getData(portNumber);
-            servo.targetPosition = servo.maxPosition * (0.5 + pwmPowerFromPosition(servo, position));
+            servo.targetPosition = 
+                servo.maxPosition 
+                * Range.clip(0.5 + pwmPowerFromPosition(servo, position), 0, 1.0);
             servo.isTargetSet = true;
         } else {
             throw new ClassCastException("servoData.actuator must be instance of CRServoImplEx or ServoImplEx");
@@ -247,6 +249,10 @@ public class ServoControllerExFake implements ServoControllerEx {
     @Override
     public void setServoPwmDisable(int portNumber) {
         getData(portNumber).isEnabled = false;
+        getData(portNumber).unaffectedVelocity = 0;
+        if(getData(portNumber).isContinuous()) {
+            ((ContinuousServoData) getData(portNumber)).power = 0;
+        }
     }
 
     @Override
