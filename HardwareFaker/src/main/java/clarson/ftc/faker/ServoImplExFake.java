@@ -3,6 +3,9 @@ package clarson.ftc.faker;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.ServoConfigurationType;
 
+import clarson.ftc.faker.updater.Rotateable;
+import clarson.ftc.faker.updater.Updateable;
+
 public class ServoImplExFake extends ServoImplEx implements Rotateable, Updateable {
     public final static ServoConfigurationType getFakeConfiguration(PositionalServoData data) {
         return new ServoConfigurationType();

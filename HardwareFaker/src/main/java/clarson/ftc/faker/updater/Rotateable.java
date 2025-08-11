@@ -1,4 +1,4 @@
-package clarson.ftc.faker;
+package clarson.ftc.faker.updater;
 
 public interface Rotateable {
     public double addAngularVelOffset(double thetaPrime);

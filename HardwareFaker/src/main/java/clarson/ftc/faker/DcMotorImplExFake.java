@@ -6,6 +6,9 @@ import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
 
+import clarson.ftc.faker.updater.Rotateable;
+import clarson.ftc.faker.updater.Updateable;
+
 public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, Updateable {
     public final static MotorConfigurationType getFakeConfiguration(MotorData data) {
         final MotorConfigurationType result = new MotorConfigurationType();

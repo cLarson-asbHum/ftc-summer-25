@@ -7,6 +7,9 @@ import com.qualcomm.robotcore.hardware.configuration.typecontainers.ServoConfigu
 import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
+import clarson.ftc.faker.updater.Rotateable;
+import clarson.ftc.faker.updater.Updateable;
+
 import static com.qualcomm.robotcore.hardware.PwmControl.PwmRange;
 
 abstract public class ServoData<T extends HardwareDevice> implements Rotateable, Updateable {

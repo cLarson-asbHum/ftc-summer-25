@@ -5,6 +5,9 @@ import com.qualcomm.robotcore.hardware.ServoController;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.ServoConfigurationType;
 import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
 
+import clarson.ftc.faker.updater.Rotateable;
+import clarson.ftc.faker.updater.Updateable;
+
 public class CRServoImplExFake extends CRServoImplEx implements Rotateable, Updateable {
     public final static ServoConfigurationType getFakeConfiguration(ContinuousServoData data) {
         return new ServoConfigurationType();
