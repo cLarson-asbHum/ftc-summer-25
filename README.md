@@ -26,6 +26,7 @@ the following:
  * DcMotorImplEx
  * ServoControllerEx
  * CRServoImplEx
+ * ServoImplEx
 
 Along with these, the following classes are planned to be implemented:
 
@@ -33,7 +34,6 @@ Along with these, the following classes are planned to be implemented:
  * DistanceSensor
  * Gamepad
  * IMU
- * ServoImplEx
  * Telemetry
  * TouchSensor
 
