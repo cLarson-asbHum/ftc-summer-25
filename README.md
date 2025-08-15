@@ -1,5 +1,5 @@
-[![Build](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-build.yaml/badge.svg?branch=test-double-controller)](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-build.yaml)
-[![Unit Tests](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-test.yaml/badge.svg?branch=test-double-controller)](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-test.yaml)
+[![Build](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-build.yaml/badge.svg?branch=sim-updater)](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-build.yaml)
+[![Unit Tests](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-test.yaml/badge.svg?branch=sim-updater)](https://github.com/cLarson-asbHum/ftc-summer-25/actions/workflows/gradle-test.yaml)
 
 # C. Larson Summer 2025 Testing Repo
 
@@ -7,35 +7,42 @@ Hi! This repo probably *isn't* what you're looking for, as this is a repo
 practicing *my* RoadRunner and JUnit 5 abilities. Unless you find that 
 interesting or useful, please, search elsewhere.
 
-## `test-double-controller`
+<!--
+## Table of Contents
 
-This branch pertains to the creation and testing of test doubles of common 
-classes in `com.qualcomm.robotcore.hardware`, but instead of directly
-implementing functionality in the classes themselves, the controllers are
-implemented, which handle the logic. The original RobotCore implementations of
-hardware then use such controllers correctly. The currently implemented classes
-can be seen below in the "HardwareFaker Subproject" section.
+TODO: Table of contents??
+-->
+
+## `sim-updater`
+
+This purpose of this branch is to create the framework by which `Updateable`s are 
+updated automatically. The main class responsible will be `ModularUpdater`,
+which updates registered `Updateable`s with its `update()` method. Updateables 
+can be updated automatically through methods that would send commands to the 
+Lynx board (e.g `setPower()`, `getMode()`, `setPositon()`, `getDistance()`, etc.), 
+or manually through calling the `ModularUpdater.update()` method (or 
+`Updateable.update()`) on the fakes. 
 
 ## `HardwareFaker` Subproject
 
-This subproject contains several test doubles of `com.qualcomm.robotcore` 
-devices common to FTC projects. Currently implemented Test doubles include 
-the following:
+This subproject contains several test doubles of 
+`com.qualcomm.robotcore.hardware` devices common to FTC projects. Currently 
+implemented Test doubles include the following:
 
- * DcMotorControllerEx
- * DcMotorImplEx
- * ServoControllerEx
- * CRServoImplEx
- * ServoImplEx
+ * `DcMotorControllerEx`
+ * `DcMotorImplEx`
+ * `ServoControllerEx`
+ * `CRServoImplEx`
+ * `ServoImplEx`
 
 Along with these, the following classes are planned to be implemented:
 
- * ColorRangeSensor
- * DistanceSensor
- * Gamepad
- * IMU
- * Telemetry
- * TouchSensor
+ * `ColorRangeSensor`
+ * `DistanceSensor`
+ * `Gamepad`
+ * `IMU`
+ * `Telemetry`
+ * `TouchSensor`
 
 ### Intallation
 
@@ -98,11 +105,64 @@ DcMotor motor = new DcMotorImplExFake(312, 576.6);
 // Previously was "DcMotorEx motor = new DcMotorExFake(312, 576.6)" 
 ```
 
-This also applies for other super-interfaces, such as `Servo` and `CRServo`; use the fake with "Ex" in its name. For `Servo`, use `ServoImplExFake`, and with `CRServo` use `CRServoImplExFake`.  
+This also applies for other super-interfaces, such as `Servo` and `CRServo`; use 
+the fake with "Ex" in its name. For `Servo`, use `ServoImplExFake`, and with 
+`CRServo` use `CRServoImplExFake`.  
+
+### Using `ModularUpdater`
+
+In real opmodes with real hardware, methods that send commands to the Lynx board
+(a part of Control and Expansion Hubs) take time, upwards of 2 milliseconds. As 
+a result, such hardware calls are responsible for both latency but also- and 
+more importantly- the movement of actuators and updating of sensors after each 
+hardware call. This effect can be simulated by manually calling `update()` on
+fakes implementing the `Updateable` interface, or by registering such 
+`Updateable`s with a `ModularUpdater` object.
+
+`Updateable`s can be registered using the `ModularUpdater.register` method.
+
+<!-- TODO: make this include a part about how Hardware maps auto register! -->
+
+All `ModularUpdater`-related classes are in the `clarson.ftc.faker.updater`
+package. This includes `ModularUpdater`, but also the following classes:
+
+| Symbol Name           | Synopsis                                                          |
+| --------------------- | ----------------------------------------------------------------- |
+| `ModularUpdater`      | Concrete subclass of the `Updater` interface                      |
+| `Rotateable`          | Interface for fakes able to have external rotation applied        |
+| `SimulateDelay`       | Annotates a method as causing automatic updates                   |
+| `Updateable`          | Interface for fakes able to be registered with `Updater`s         |
+| `Updater`             | Interface for ModularUpdater                                      |
+
+
+### Automatic `update()` Calls
+
+Automatic updating is done whenever a registered `Updateable` calls a method 
+whose real life counterpart would send a command to the Lynx board. Such methods 
+include `setPower()`, `getMode()`, `setPositon()`, `getDistance()`, etc. This 
+calls the `update()` method on all `Updateable`s registered on the same Updater. 
+
+Any method that causes an automatic update is marked with `@SimulateDelay`. 
+Methods that are marked with `@SimulateDelay(HandleBulkCache.GETTER)` are cache 
+getter methods, and `@SimulateDelay(HandleBulkCache.SETTER)` are cache setter 
+methods.
+
+**NOTE:** `@SimulateDelay` annotation is only retained in source, and cannot be
+used at runtime to verify a method causes automatic updates.
+
+Each automatic update has a delay length of 2.5 milliseconds unless the source 
+is an I2C command, in which the delay is 7.5 ms. Manual updates must specify 
+delay length in seconds using the `update()` method's parameter `deltaSec`.
+
+**NOTE:** "Delay length" refers to the length of time *simulated*, not actually 
+elapsing. In other words, `update()` does ***not*** block the calling thread for
+2.5 milliseconds; instead, the real-life hardware the updated fake represents 
+would block all threads for such time, causing all actuators to move and sensors
+to update.
 
 ### Known Issues
 
- * Calls to Lynx-module issuing methods such as `setPower()` do not simulate the
+ * Calls to Lynx-module issuing methods such as `setPower()` do not yet simulate the
    delay of such operation. This, in turn, means opmode devices are not being
    updated
 
@@ -123,3 +183,23 @@ This also applies for other super-interfaces, such as `Servo` and `CRServo`; use
  
  * Framing length in `PwmController.PwmRange` objects is ignored for all servo
    fakes, continuous or positional.
+
+<!--TODO: Create exmaples so that we can include the following:
+### Examples 
+TODO: create an example directory
+
+**OpModes:**
+TODO: create simple examples of OpMode features such as `InjectionHardwareMap`
+
+**Basic Tests:** 
+TODO: create examples showing the basic syntax and usage
+
+**Automatic Updates:** 
+TODO: create examples of how automatic updates work
+
+**Wrappers:**
+TODO: Create examples of using the data wrapper classes and controllers
+
+**Sensors:**
+TODO: Create examples of using sensor and setting the data
+ -->
