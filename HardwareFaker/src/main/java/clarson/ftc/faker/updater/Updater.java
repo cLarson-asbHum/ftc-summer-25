@@ -47,13 +47,8 @@ public interface Updater {
     /**
      * Registers the given Updateable so that it can be updated by this `Updater`.
      * 
-     * Circular references are able to be added. `updateAll()` is expected to 
-     * be called on any Updaters that were registered, but only if such updater
-     * has not already been traversed; each registered Updater and Updateable
-     * is updated only once.
-     * 
-     * NOTE: Implementations are **strongly** recommended to store registered 
-     * `Updateable`s *weakly*, either with weak maps or sets.
+     * Circular references are handled on a case-by-case basis. It is expected
+     * that some 
      * 
      * @param newUpdateable What to register. A weak reference will be created.
      * @return Whether the Updateable was now added. False if it was added 
@@ -76,21 +71,10 @@ public interface Updater {
      * Updates all Updateables registered with this updater. Management of bulk 
      * caching is not done with this method.
      * 
-     * If Updaters (that implement `Updateable`) are registered, they are 
-     * expected to have their `updateAll()` method called. Consequently, circular
-     * references can arise. However, all Updaters and Updateables should only be
-     * updated once and if applicable have their `updateAll()` method called 
-     * once, ensuring no runaway recursion or loops.
-     * 
-     * This method does not guard against multiple updates to the same object 
-     * if Updateables update objects other than theirself. This might occur if 
-     * an erroneous implementation of, for example, `DcMotorController` updated 
-     * all connected motors when it was itself updated with `update()` instead 
-     * of `updateAll()`, but all the motors were also connected. If the 
-     * DcMotorController had instead been an Updater and updated the motors only
-     * when `updateAll()` was called and instead updated only **itself** in 
-     * `update()`, every object would only be updated once-- assuming no other
-     * erroneous updating.
+     * Any registered Updaters will not have their `updateAll()` method called,
+     * unless it is called in its own `update()` method. This is, however, 
+     * **not recommended** as registered updateables may call updateAll() on
+     * the Updater, causing an unintended double update.
      * 
      * @param deltaSec How much time has elapsed since last call, in seconds.
      * @see #updateAll(UpdateDelaySource delay)
@@ -102,21 +86,10 @@ public interface Updater {
      * source of a delay length. Management of bulk caching is not done with 
      * this method.
      * 
-     * If Updaters (that implement `Updateable`) are registered, they are 
-     * expected to have their `updateAll()` method called. Consequently, circular
-     * references can arise. However, all Updaters and Updateables should only be
-     * updated once and if applicable have their `updateAll()` method called 
-     * once, ensuring no runaway recursion or loops.
-     * 
-     * This method does not guard against multiple updates to the same object 
-     * if Updateables update objects other than theirself. This might occur if 
-     * an erroneous implementation of, for example, `DcMotorController` updated 
-     * all connected motors when it was itself updated with `update()` instead 
-     * of `updateAll()`, but all the motors were also connected. If the 
-     * DcMotorController had instead been an Updater and updated the motors only
-     * when `updateAll()` was called and instead updated only **itself** in 
-     * `update()`, every object would only be updated once-- assuming no other
-     * erroneous updating.
+     * Any registered Updaters will not have their `updateAll()` method called,
+     * unless it is called in its own `update()` method. This is, however, 
+     * **not recommended** as registered updateables may call updateAll() on
+     * the Updater, causing an unintended double update.
      * 
      * @param delay Source of the delay length from who called this method.
      * @see #updateAll(double deltaSec)
