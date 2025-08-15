@@ -25,31 +25,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
+import static clarson.ftc.faker.test.TestUtil.*; // Provides assertFloatEquals and doesThrow
 
 @DisplayName("DcMotorImplExFake")
 class DcMotorImplExFakeUnitTest {
-    private static boolean doesThrow(Executable code) {
-        try {
-            code.execute();
-            return false;
-        } catch(Throwable err) {
-            return true;
-        } 
-    }
-
-    private static void assertFloatEquals(double expected, double actual, double eps){
-        if(Math.abs(expected - actual) > eps) {
-            AssertionFailureBuilder
-                .assertionFailure()
-                .reason("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                // .message("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                .actual(actual)
-                .expected(expected)
-                .includeValuesInMessage(false)
-                .buildAndThrow();
-        }
-    }
-
     @DisplayName("Can construct")
     @Test 
     void canConstruct() {

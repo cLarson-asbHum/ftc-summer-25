@@ -30,46 +30,9 @@ import clarson.ftc.faker.ServoControllerExFake;
 import static com.qualcomm.robotcore.hardware.PwmControl.PwmRange;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
-
+import static clarson.ftc.faker.test.TestUtil.*;
 
 public class ServoImplExFakeUnitTest {
-    private static boolean doesThrow(Executable code) {
-        try {
-            code.execute();
-            return false;
-        } catch(Throwable err) {
-            return true;
-        } 
-    }
-
-    private static void assertFloatEquals(double expected, double actual, double eps){
-        if(Math.abs(expected - actual) > eps) {
-            // throw ("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">");
-            // throw new RuntimeException("waaat? o_O");
-            AssertionFailureBuilder
-                .assertionFailure()
-                .reason("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                // .message("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                // .actual(actual)
-                // .expected(expected)
-                .buildAndThrow();
-        }
-    }
-
-    private static void assertFloatNotEquals(double expected, double actual, double eps){
-        if(Math.abs(expected - actual) < eps) {
-            // throw ("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">");
-            // throw new RuntimeException("waaat? o_O");
-            AssertionFailureBuilder
-                .assertionFailure()
-                .reason("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                // .message("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                // .actual(actual)
-                // .expected(expected)
-                .buildAndThrow();
-        }
-    }
-
     @DisplayName("Can construct")
     @Test 
     void canConstruct() {
