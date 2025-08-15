@@ -30,46 +30,9 @@ import clarson.ftc.faker.ServoControllerExFake;
 import static com.qualcomm.robotcore.hardware.PwmControl.PwmRange;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
-
+import static clarson.ftc.faker.test.TestUtil.*;
 
 public class ServoImplExFakeUnitTest {
-    private static boolean doesThrow(Executable code) {
-        try {
-            code.execute();
-            return false;
-        } catch(Throwable err) {
-            return true;
-        } 
-    }
-
-    private static void assertFloatEquals(double expected, double actual, double eps){
-        if(Math.abs(expected - actual) > eps) {
-            // throw ("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">");
-            // throw new RuntimeException("waaat? o_O");
-            AssertionFailureBuilder
-                .assertionFailure()
-                .reason("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                // .message("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                // .actual(actual)
-                // .expected(expected)
-                .buildAndThrow();
-        }
-    }
-
-    private static void assertFloatNotEquals(double expected, double actual, double eps){
-        if(Math.abs(expected - actual) < eps) {
-            // throw ("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">");
-            // throw new RuntimeException("waaat? o_O");
-            AssertionFailureBuilder
-                .assertionFailure()
-                .reason("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                // .message("expected: <" + expected + "> with tolerance: <" + eps + "> but was: <" + actual + ">")
-                // .actual(actual)
-                // .expected(expected)
-                .buildAndThrow();
-        }
-    }
-
     @DisplayName("Can construct")
     @Test 
     void canConstruct() {
@@ -194,7 +157,7 @@ public class ServoImplExFakeUnitTest {
             return data.position - startPosition;
         }
 
-        /*
+        /**
          * Times the duration of setting the target to the given position and 
          * waiting for the position to be reached within specificed tolerance.
          * 
@@ -214,6 +177,39 @@ public class ServoImplExFakeUnitTest {
             while(t < MAX && Math.abs(data.position - data.targetPosition) > tolerance) {
                 servo.update(STEP);
                 t += STEP;
+            }
+
+            // System.out.println("[drive servo to] :" + );
+            System.out.println("[drive servo to] elapsed: " + t);
+            System.out.println("[drive servo to] start: " + startPosition);
+            System.out.println("[drive servo to] position: " + data.position);
+            System.out.println("[drive servo to] target: " + data.targetPosition);
+            System.out.println("[drive servo to] tolerance: " + data.tolerance);
+
+            return t;
+        }
+        /**
+         * Times the duration of setting the target to the given position and 
+         * waiting for the position to be reached within specificed tolerance.
+         * 
+         * @param position  Where to rotate to, on interval [0, 1]
+         * @param tolerance Plus-or-minus difference from target, in revolutions
+         * @param maxTime Max amount of seconds that can be simulated
+         * @param step seconds between each update
+         * @return The change in the position as a result of setting position.
+         */
+        double timeServoTo(double position, double tolerance, double maxTime, double step) {
+            final PositionalServoData data = servo.getServoData();
+            final double startPosition = data.position;
+            data.tolerance = tolerance;
+            servo.setPosition(position);
+
+            // final double MAX = 2 * turns / rpm * 60;
+            // final double STEP = 0.001;
+            double t = 0;
+            while(t < maxTime && Math.abs(data.position - data.targetPosition) > tolerance) {
+                servo.update(step);
+                t += step;
             }
 
             // System.out.println("[drive servo to] :" + );
@@ -498,7 +494,6 @@ public class ServoImplExFakeUnitTest {
         
         }
 
-        @Disabled("No tests are written yet!")
         @DisplayName("Add Velocity Misc.")
         @Nested
         class AddVelocity {
@@ -512,11 +507,15 @@ public class ServoImplExFakeUnitTest {
                 assertFloatNotEquals(0, unaffectedTime, 1e-5);
 
                 // Testing the the time is longer
-                servo.setAngularVelOffset(0.5 * 2 * Math.PI * rpm / 60);
-                final double affectedTime = timeServoTo(0, TOL);
-                assertFloatEquals(0.5 * turns, servo.getServoData().position, TOL);
+                servo.setAngularVelOffset(0.6 * 2 * Math.PI * rpm / 60);
+                final double reversedPosition = directionName.equals("REVERSE") ? 1.0 : 0;
+                final double affectedTime = timeServoTo(reversedPosition, TOL);
+                assertFloatEquals(0, servo.getServoData().position, TOL);
                 assertFloatNotEquals(0, unaffectedTime, 1e-5);
-                assertTrue(affectedTime / unaffectedTime <= 0.5);
+                System.out.println("🎈");
+                System.out.println("[small offset delays] affectedTime: " + affectedTime);
+                System.out.println("[small offset delays] unaffectedTime: " + unaffectedTime);
+                assertTrue(unaffectedTime / affectedTime <= 0.5);
             }
 
             @DisplayName("Large offset prevents setPosition")
@@ -541,24 +540,27 @@ public class ServoImplExFakeUnitTest {
             @Test
             void sumOfPartsCanPrevent() {
                 // Verifiying that the position can be reached in time
-                final double unaffectedTime = timeServoTo(0.5, TOL);
-                assertFloatEquals(0.5 * turns, servo.getServoData().position, TOL);
-                assertFloatEquals(0.5 * turns / rpm * 60, unaffectedTime, 0.5);
+                final double reversedPos = directionName.equals("REVERSE") ? 0 : 1.0; // Rotates around fully
+                final double unaffectedTime = timeServoTo(reversedPos, TOL);
+                assertFloatEquals(turns, servo.getServoData().position, TOL);
+                assertFloatEquals(turns / rpm * 60, unaffectedTime, 0.5);
                 assertFloatNotEquals(0, unaffectedTime, 1e-5);
 
                 // Testing the the time is longer, but it reaches there
                 servo.addAngularVelOffset(0.75 * 2 * Math.PI * rpm / 60);
-                final double affectedTime = timeServoTo(0, TOL);
+                final double maxTime = 10 * turns / rpm * 60;
+                final double affectedTime = timeServoTo(0.5, TOL, maxTime, 0.001); // Give extra time because its gonna take a WHILE
                 assertFloatEquals(0.5 * turns, servo.getServoData().position, TOL);
                 assertFloatNotEquals(0, unaffectedTime, 1e-5);
-                assertTrue(affectedTime / unaffectedTime <= 0.75);
+                assertTrue((0.5 * unaffectedTime) / affectedTime <= 0.3);
 
                 // Testing that with another offset added (not overriding)
                 servo.addAngularVelOffset(0.75 * 2 * Math.PI * rpm / 60);
-                final double affectedSumOfPartsTime = timeServoTo(0, TOL);
+                final double affectedSumOfPartsTime = timeServoTo(1 - reversedPos, TOL, maxTime, 0.001);
                 assertFloatNotEquals(0, servo.getServoData().position, TOL);
                 assertFloatNotEquals(0.5 * turns, servo.getServoData().position, TOL);
                 assertFloatNotEquals(0, affectedSumOfPartsTime, 1e-5);
+                assertFloatEquals(maxTime, affectedSumOfPartsTime, 0.001);
             }
         }
     }
