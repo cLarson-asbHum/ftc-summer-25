@@ -9,8 +9,13 @@ import com.qualcomm.hardware.lynx.commands.LynxMessage;
 import com.qualcomm.hardware.lynx.commands.LynxCommand;
 import com.qualcomm.hardware.lynx.commands.core.LynxGetBulkInputDataCommand;
 import com.qualcomm.hardware.lynx.commands.core.LynxGetBulkInputDataResponse;
+import com.qualcomm.hardware.lynx.commands.standard.LynxKeepAliveCommand;
+import com.qualcomm.hardware.lynx.commands.standard.LynxStandardCommand;
+import com.qualcomm.hardware.lynx.commands.standard.LynxQueryInterfaceCommand;
+import com.qualcomm.hardware.lynx.commands.standard.LynxQueryInterfaceResponse;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.hardware.lynx.LynxModuleIntf;
+import com.qualcomm.hardware.lynx.commands.standard.LynxAck;
 import com.qualcomm.hardware.lynx.commands.standard.LynxNack;
 import com.qualcomm.hardware.lynx.LynxUsbDevice;
 import com.qualcomm.hardware.lynx.LynxUsbDeviceImpl;
@@ -29,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import org.firstinspires.ftc.robotcore.external.Consumer;
@@ -39,6 +45,74 @@ import org.firstinspires.ftc.robotcore.internal.hardware.TimeWindow;
 import org.firstinspires.ftc.robotcore.internal.system.Assert;
 
 public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
+    public static final String UNRESPONDABLE_MSG = "LynxMessage %s could not receive its response.";
+    public static final String UN_NACKABLE_MSG = "LynxMessage %s could not receive its nack.";
+    public static final String UN_ACKABLE_MSG = "LynxMessage %s could not receive its ack(nowledgement).";
+
+    private static class RobotUsbDeviceFake implements RobotUsbDevice {
+        // ----------------------------------------
+        //     Important Methods! Are called!
+        // ----------------------------------------
+
+        private SerialNumber serial;
+        
+        @Override 
+        public USBIdentifiers getUsbIdentifiers() {
+            return USBIdentifiers.createLynxIdentifiers();
+        }
+        
+        @Override 
+        @NonNull 
+        public DeviceManager.UsbDeviceType getDeviceType() {
+            return DeviceManager.UsbDeviceType.LYNX_USB_DEVICE;
+        }
+        
+        @Override 
+        @NonNull 
+        public SerialNumber getSerialNumber() {
+            return serial;
+        }
+
+        
+        // ----------------------------------------
+        //          Do-Nothing Methods 
+        // ----------------------------------------
+        @Override public void setDebugRetainBuffers(boolean retain) {}
+        @Override public void logRetainedBuffers(long nsOrigin, long nsTimerExpire, String tag, String format, Object...args) {}
+        @Override public void setBaudRate(int rate) throws RobotUsbException {}
+        @Override public void setDataCharacteristics(byte dataBits, byte stopBits, byte parity) throws RobotUsbException {}
+        @Override public void setLatencyTimer(int latencyTimer) throws RobotUsbException {}
+        @Override public void setBreak(boolean enable) throws RobotUsbException {}
+        @Override public void resetAndFlushBuffers() throws RobotUsbException {}
+        @Override public void write(byte[] data) throws InterruptedException, RobotUsbException {}
+        @Override public void skipToLikelyUsbPacketStart() {}
+        @Override public void requestReadInterrupt(boolean interruptRequested) {}
+        @Override public void close() {}
+        @Override public void setFirmwareVersion(FirmwareVersion version) {}
+        @Override public void setDeviceType(@NonNull DeviceManager.UsbDeviceType deviceType) {}
+        @Override public boolean mightBeAtUsbPacketStart() {
+            return false;
+        }
+        @Override public int read(byte[] data, int ibFirst, int cbToRead, long msTimeout, @Nullable TimeWindow timeWindow) throws RobotUsbException, InterruptedException {
+            return 0;
+        }
+        @Override public boolean isOpen() {
+            return true;
+        }
+        @Override public boolean isAttached() {
+            return true;
+        }
+        @Override public FirmwareVersion getFirmwareVersion() {
+            return null;
+        }
+        @Override @NonNull public String getProductName() {
+            return "Do-Nothing RobotUsbDevice";
+        }
+        @Override public boolean getDebugRetainBuffers() {
+            return false;
+        }
+    }
+
     private static class RobotUsbManagerFake implements RobotUsbManager {
         // Looking at the source of LynxUsbDeviceImpl and ArmableUsbDevice, this 
         // RobotUsbDevice is only used to reset the lynx board, and read 
@@ -48,69 +122,11 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
         //
         // Reading and writing can be simulated in the `LynxUsbDevice.transmit()` 
         // method, so no worrys there.
-        public RobotUsbDevice fake = new RobotUsbDevice() {
-            // ----------------------------------------
-            //     Important Methods! Are called!
-            // ----------------------------------------
+        public RobotUsbDeviceFake fake = new RobotUsbDeviceFake();
 
-            private SerialNumber serial = SerialNumber.createFake();
-            
-            @Override 
-            public USBIdentifiers getUsbIdentifiers() {
-                return USBIdentifiers.createLynxIdentifiers();
-            }
-            
-            @Override 
-            @NonNull 
-            public DeviceManager.UsbDeviceType getDeviceType() {
-                return DeviceManager.UsbDeviceType.LYNX_USB_DEVICE;
-            }
-            
-            @Override 
-            @NonNull 
-            public SerialNumber getSerialNumber() {
-                return serial;
-            }
-
-            
-            // ----------------------------------------
-            //          Do-Nothing Methods 
-            // ----------------------------------------
-            @Override public void setDebugRetainBuffers(boolean retain) {}
-            @Override public void logRetainedBuffers(long nsOrigin, long nsTimerExpire, String tag, String format, Object...args) {}
-            @Override public void setBaudRate(int rate) throws RobotUsbException {}
-            @Override public void setDataCharacteristics(byte dataBits, byte stopBits, byte parity) throws RobotUsbException {}
-            @Override public void setLatencyTimer(int latencyTimer) throws RobotUsbException {}
-            @Override public void setBreak(boolean enable) throws RobotUsbException {}
-            @Override public void resetAndFlushBuffers() throws RobotUsbException {}
-            @Override public void write(byte[] data) throws InterruptedException, RobotUsbException {}
-            @Override public void skipToLikelyUsbPacketStart() {}
-            @Override public void requestReadInterrupt(boolean interruptRequested) {}
-            @Override public void close() {}
-            @Override public void setFirmwareVersion(FirmwareVersion version) {}
-            @Override public void setDeviceType(@NonNull DeviceManager.UsbDeviceType deviceType) {}
-            @Override public boolean mightBeAtUsbPacketStart() {
-                return false;
-            }
-            @Override public int read(byte[] data, int ibFirst, int cbToRead, long msTimeout, @Nullable TimeWindow timeWindow) throws RobotUsbException, InterruptedException {
-                return 0;
-            }
-            @Override public boolean isOpen() {
-                return true;
-            }
-            @Override public boolean isAttached() {
-                return true;
-            }
-            @Override public FirmwareVersion getFirmwareVersion() {
-                return null;
-            }
-            @Override @NonNull public String getProductName() {
-                return "Do-Nothing RobotUsbDevice";
-            }
-            @Override public boolean getDebugRetainBuffers() {
-                return false;
-            }
-        };
+        public RobotUsbManagerFake(SerialNumber serial) {
+            this.fake.serial = serial;
+        }
 
         @Override
         public List<SerialNumber> scanForDevices() {
@@ -128,12 +144,10 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
         }
     }
     
-    private static final RobotUsbManagerFake usbManagerFake = new RobotUsbManagerFake();
-
     private static final SerialNumber createFakeSerial() {
-        return SerialNumber.createEmbedded();
+        return lastFakeSerial = SerialNumber.createEmbedded();
     }
-    
+
     private static void throwIfWrongSize(Object[] hardware, int maxAllowableSize, String hardwareName) {
         if(hardware.length > maxAllowableSize) {
             throw new IllegalArgumentException(String.format(
@@ -146,17 +160,24 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
     }
 
     private static byte getByte(int num, int litteEndianIndex) {
-        return (byte) ((num & (1 << litteEndianIndex)) >>> litteEndianIndex);
+        final int byteIndex = 8 * litteEndianIndex;
+        return (byte) ((num & (0xff << byteIndex)) >>> byteIndex);
     }
 
+    private static RobotUsbManagerFake usbManagerFake;
+    private static SerialNumber lastFakeSerial;
     private DcMotorEx[] motors = null;
     // private AnalogInput[] analogInputs = null;
     // private DigitalChannel[] digitalChannels = null;
 
     public LynxUsbDeviceImplFake() {        
-        super(null, createFakeSerial(), null, usbManagerFake);
+        super(null, createFakeSerial(), null, usbManagerFake = new RobotUsbManagerFake(lastFakeSerial));
         // All hardware lists are left null.
-    }
+
+        System.out.println("[impl fake init] serial: " + lastFakeSerial);
+        System.out.println("[impl fake init] subUsb serial: " + usbManagerFake.fake.serial);
+        System.out.println("[impl fake init] usbDevice: " + usbManagerFake.openBySerialNumber(lastFakeSerial));
+    }  
 
 
     // TODO: Create the analog and digital sensors
@@ -258,6 +279,19 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
         ));
     }
 
+    private LynxQueryInterfaceResponse handleQueryInterfaceCommand(LynxModuleIntf module) {
+        final LynxQueryInterfaceResponse result = new LynxQueryInterfaceResponse((LynxModule) module);
+        final short commandNumberFirst = LynxStandardCommand.COMMAND_NUMBER_FIRST;
+        final short numberOfCommands = LynxStandardCommand.COMMAND_NUMBER_LAST - LynxStandardCommand.COMMAND_NUMBER_FIRST + 1;
+        result.fromPayloadByteArray(new byte[] { 
+            getByte(commandNumberFirst, 0),
+            getByte(commandNumberFirst, 1),
+            getByte(numberOfCommands, 0),
+            getByte(numberOfCommands, 1),
+        });
+        return result;
+    }
+
     /**
      * Takes the given command, and produces a response based off of it. Only 
      * certain commands are supported, which are listed below:
@@ -273,19 +307,32 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
     @Override
     public void transmit(LynxMessage message) {
         LynxMessage response = null;
+        LynxAck ack = null;
 
-        // If the command is supported, handle th command and its resopnse.
+        // If the command is supported, handle th command and its resopnse (if necessary).
         // This is hacky and I don't like instaceof chains, but its the best we can do.
         // NOTE: If you want to fix this, I'm open for a PR!
         if(message instanceof LynxGetBulkInputDataCommand) {
             response = handleBulkDataCommand(message.getModule());
         }
 
+        if(message instanceof LynxQueryInterfaceCommand) {
+            response = handleQueryInterfaceCommand(message.getModule());
+        }
+
+        if(message instanceof LynxKeepAliveCommand) {
+            ack = new LynxAck(message.getModule(), false);
+        }
+
         // TODO: Implement LED command functionality
 
         // Handling the response if a response was received. We first verify ability to respond
         if(response != null && !(message.isAckable() && message.isResponseExpected())) {
-            throw new UnsupportedLynxUsbCommandException("LynxMessage " + message + " could not receive its response.");
+            throw new UnsupportedLynxUsbCommandException(String.format(
+                Locale.US, 
+                UNRESPONDABLE_MSG, 
+                message.toString()
+            ));
         }
 
         if(response != null) {
@@ -294,12 +341,33 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
             return;
         }
 
-        // Sending the error response. We first must verify taht we can, however
-        if(!message.isAckable()) {
-            throw new UnsupportedLynxUsbCommandException("LynxMessage " + message + " could not be nacked");
+        // Handling an acknowledgement (informally known as an "ack")
+        if(ack != null && !message.isAckable()) {
+            throw new UnsupportedLynxUsbCommandException(String.format(
+                Locale.US,
+                UN_ACKABLE_MSG, // Not to be confused with UNNACKABLE  
+                message.toString()
+            ));
         }
 
-        final LynxNack nackResponse = new LynxNack(message.getModule(), LynxNack.StandardReasonCode.COMMAND_IMPL_PENDING);
+        if(ack != null) {
+            ((LynxRespondable) message).onAckReceived(ack);
+            return;
+        }
+
+        // Sending the error response. We first must verify that we can, however
+        if(!message.isAckable()) {
+            throw new UnsupportedLynxUsbCommandException(String.format(
+                Locale.US, 
+                UN_NACKABLE_MSG, // Not to be confused with UN_ACKABLE_MESSAGE 
+                message.toString()
+            ));
+        }
+
+        final LynxNack nackResponse = new LynxNack(
+            message.getModule(), 
+            LynxNack.StandardReasonCode.COMMAND_ROUTING_ERROR
+        );
         ((LynxRespondable) message).onNackReceived(nackResponse);
         return;
     }
@@ -374,7 +442,7 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
             //
             if (!resetAttempted) {
                 resetAttempted = true;
-                resetDevice(this.robotUsbDevice);
+                // resetDevice(this.robotUsbDevice);
             }
 
             this.hasShutdownAbnormally = false;
@@ -384,9 +452,111 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
 
             resetNetworkTransmissionLock();
             // startPollingForIncomingDatagrams();
-            // pingAndQueryKnownInterfaces();
+            System.out.println("[arm impl fake] known modules: " + this.getKnownModules());
+            pingAndQueryKnownInterfaces();
             // startRegularPinging();
             // RobotLog.vv(TAG, "...done armDevice()");
         }
     }
+
+    /*
+     * This method "getOrAddModule(RobotUsbDevice device)", modified from the 
+     * original source form, is subject to the following copyright:
+     *
+     * Copyright (c) 2016 Robert Atkinson
+     *
+     * All rights reserved.
+     *
+     * Redistribution and use in source and binary forms, with or without modification,
+     * are permitted (subject to the limitations in the disclaimer below) provided that
+     * the following conditions are met:
+     *
+     * Redistributions of source code must retain the above copyright notice, this list
+     * of conditions and the following disclaimer.
+     *
+     * Redistributions in binary form must reproduce the above copyright notice, this
+     * list of conditions and the following disclaimer in the documentation and/or
+     * other materials provided with the distribution.
+     *
+     * Neither the name of Robert Atkinson nor the names of his contributors may be used to
+     * endorse or promote products derived from this software without specific prior
+     * written permission.
+     *
+     * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED BY THIS
+     * LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+     * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+     * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+     * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
+     * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+     * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+     * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+     * TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+     * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+     */
+    @Override
+    public LynxModule getOrAddModule(LynxModuleDescription moduleDescription)
+            throws InterruptedException, RobotCoreException {
+        // Avoid potential race condition where
+        // performSystemOperationOnConnectedModule() closes a module that this
+        // method just promoted to be a user module.
+        synchronized (sysOpStartStopLock) {
+            int moduleAddress = moduleDescription.address;
+            // RobotLog.vv(TAG, "addConfiguredModule() module#=%d", moduleAddress);
+            // boolean added = false;
+            LynxModule module;
+
+            synchronized (this.knownModules) {
+                if (!this.knownModules.containsKey(moduleAddress)) {
+                    module = new LynxModule(
+                        this, moduleAddress, 
+                        moduleDescription.isParent,
+                        moduleDescription.isUserModule
+                    );
+
+                    if (moduleDescription.isSystemSynthetic) {
+                        module.setSystemSynthetic(true);
+                    }
+                    
+                    this.knownModules.put(moduleAddress, module);
+                    // added = true;
+                } else {
+                    module = knownModules.get(moduleAddress);
+                    // RobotLog.vv(TAG, "addConfiguredModule() module#=%d: already exists",
+                    // moduleAddress);
+
+                    // noinspection ConstantConditions
+                    if (moduleDescription.isUserModule && !module.isUserModule()) {
+                        // The caller of this method is trying to set up a user module, but the
+                        // currently-registered module is a non-user module, so we convert the
+                        // registered module into a user module.
+                        // RobotLog.vv(TAG, "Converting module #%d to a user module",
+                        // module.getModuleAddress());
+                        module.setUserModule(true);
+                    }
+
+                    // noinspection ConstantConditions
+                    if (
+                        moduleDescription.isUserModule 
+                        && moduleDescription.isSystemSynthetic
+                        && !module.isSystemSynthetic()
+                    ) {
+                        // The caller of this method is trying to set up a user module that was added
+                        // implicitly, rather than explicitly stated in the XML configuration. Add that
+                        // property to the registered module.
+                        module.setSystemSynthetic(true);
+                    }
+
+                    // noinspection ConstantConditions
+                    if (moduleDescription.isParent != module.isParent()) {
+                        // RobotLog.ww(TAG, "addConfiguredModule(): The active configuration file may be
+                        // incorrect about whether Expansion Hub %d is the parent",
+                        // module.getModuleAddress());
+                    }
+                }
+            }
+
+            return module;
+            }
+        }
 }
