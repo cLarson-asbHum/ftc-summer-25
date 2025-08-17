@@ -25,9 +25,9 @@ public class ModularUpdater implements Updater {
      */
     @Override
     public void updateAll(double deltaSec) {
-        registered.keySet().forEach(updateable -> {
+        for(final Updateable updateable : registered.keySet()) {
             updateable.update(deltaSec);
-        });
+        }
     }
 
     /**
