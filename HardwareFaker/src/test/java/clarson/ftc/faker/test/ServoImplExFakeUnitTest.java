@@ -1,4 +1,4 @@
-package carson.ftc.faker.test;
+package clarson.ftc.faker.test;
 
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
@@ -103,7 +103,7 @@ public class ServoImplExFakeUnitTest {
          * @return The change in the position as a result of setting position.
          */
         double driveServoTo(double position, double tolerance) {
-            final PositionalServoData data = servo.getServoData();
+            final PositionalServoData data = servo.getData();
             final double startPosition = data.position;
             data.tolerance = tolerance;
             servo.setPosition(position);
@@ -137,7 +137,7 @@ public class ServoImplExFakeUnitTest {
          * @return The change in the position as a result of setting position.
          */
         double driveServoTo(double position, double tolerance, double duration, double step) {
-            final PositionalServoData data = servo.getServoData();
+            final PositionalServoData data = servo.getData();
             final double startPosition = data.position;
             data.tolerance = tolerance;
             servo.setPosition(position);
@@ -166,7 +166,7 @@ public class ServoImplExFakeUnitTest {
          * @return The change in the position as a result of setting position.
          */
         double timeServoTo(double position, double tolerance) {
-            final PositionalServoData data = servo.getServoData();
+            final PositionalServoData data = servo.getData();
             final double startPosition = data.position;
             data.tolerance = tolerance;
             servo.setPosition(position);
@@ -199,7 +199,7 @@ public class ServoImplExFakeUnitTest {
          * @return The change in the position as a result of setting position.
          */
         double timeServoTo(double position, double tolerance, double maxTime, double step) {
-            final PositionalServoData data = servo.getServoData();
+            final PositionalServoData data = servo.getData();
             final double startPosition = data.position;
             data.tolerance = tolerance;
             servo.setPosition(position);
@@ -248,7 +248,7 @@ public class ServoImplExFakeUnitTest {
                 final double maxSeconds = 3.0;
                 final double updateDelaySeconds = 0.030; // 30 milliseconds
                 final double tolerance = 1.5 / 360.0; // Revolutions
-                final PositionalServoData servoData = servo.getServoData();
+                final PositionalServoData servoData = servo.getData();
 
                 servoData.tolerance = tolerance;
                 servo.setPosition(target);
@@ -281,7 +281,7 @@ public class ServoImplExFakeUnitTest {
                 final double maxSeconds = 3.0;
                 final double updateDelaySeconds = 0.030; // 30 milliseconds
                 final double tolerance = 0.5 / 360.0; // Revolutions
-                final PositionalServoData servoData = servo.getServoData();
+                final PositionalServoData servoData = servo.getData();
 
                 servoData.tolerance = tolerance;
                 servo.setPosition(target);
@@ -330,7 +330,7 @@ public class ServoImplExFakeUnitTest {
             @DisplayName("Disabling servo prevents setting power")
             @Test
             void disableDisablesSetPower() {
-                final PositionalServoData data = servo.getServoData();
+                final PositionalServoData data = servo.getData();
                 driveServoTo(0.8, TOL);
                 final double unaffectedPosition = data.position;
 
@@ -351,12 +351,12 @@ public class ServoImplExFakeUnitTest {
             void disabledAffectedByaddAngularVelOffset() {
                 final double unaffectedDeltaPos = driveServoTo(0.5, TOL);
                 assertNotEquals(0, unaffectedDeltaPos);
-                System.out.println(unaffectedDeltaPos - servo.getServoData().targetPosition);
+                System.out.println(unaffectedDeltaPos - servo.getData().targetPosition);
                 System.out.println(TOL);
-                assertTrue(Math.abs(unaffectedDeltaPos - servo.getServoData().targetPosition) <= TOL);
+                assertTrue(Math.abs(unaffectedDeltaPos - servo.getData().targetPosition) <= TOL);
 
                 // Seeing if it holds position under load
-                // final double posFromTarget = Math.abs(servo.getServoData().position - servo.getServoData().targetPosition);
+                // final double posFromTarget = Math.abs(servo.getData().position - servo.getData().targetPosition);
                 servo.setAngularVelOffset(2 * Math.PI);
                 final double enabledDeltaPos = driveServoTo(0.5, TOL, 2.0, 0.01);
                 assertFloatEquals(0, enabledDeltaPos, TOL);
@@ -373,12 +373,12 @@ public class ServoImplExFakeUnitTest {
             void renabledStillWorks() {
                 final double unaffectedDeltaPos = driveServoTo(0.5, TOL);
                 assertNotEquals(0, unaffectedDeltaPos);
-                System.out.println(unaffectedDeltaPos - servo.getServoData().targetPosition);
+                System.out.println(unaffectedDeltaPos - servo.getData().targetPosition);
                 System.out.println(TOL);
-                assertTrue(Math.abs(unaffectedDeltaPos - servo.getServoData().targetPosition) <= TOL);
+                assertTrue(Math.abs(unaffectedDeltaPos - servo.getData().targetPosition) <= TOL);
 
                 // Seeing if it holds position under load
-                // final double posFromTarget = Math.abs(servo.getServoData().position - servo.getServoData().targetPosition);
+                // final double posFromTarget = Math.abs(servo.getData().position - servo.getData().targetPosition);
                 final double enabledDeltaPos = driveServoTo(0.5, TOL, 2.0, 0.01);
                 assertFloatEquals(0, enabledDeltaPos, TOL);
 
@@ -412,7 +412,7 @@ public class ServoImplExFakeUnitTest {
             @DisplayName("Setting PWM subset range limits the extrema")
             @Test
             void pwmSubsetLimitsRange() {
-                final PositionalServoData data = servo.getServoData();
+                final PositionalServoData data = servo.getData();
                 final double direction = directionName.equals("REVERSE") ? -1 : 1;
                 driveServoTo(direction * 1.0, TOL);
                 assertFloatEquals(turns, data.position, TOL);
@@ -460,7 +460,7 @@ public class ServoImplExFakeUnitTest {
             @Test
             void pwmSuperSetClipsRange() {
                 final double direction = directionName.equals("REVERSE") ? -1 : 1;
-                final PositionalServoData data = servo.getServoData();
+                final PositionalServoData data = servo.getData();
                 driveServoTo(-1.0 * direction, TOL);
                 assertFloatEquals(0, data.position, TOL);
                 driveServoTo(1.0 * direction, TOL);
@@ -502,7 +502,7 @@ public class ServoImplExFakeUnitTest {
             void smallOffsetDelays() {
                 // Verifiying that the position can be reached in time
                 final double unaffectedTime = timeServoTo(0.5, TOL);
-                assertFloatEquals(0.5 * turns, servo.getServoData().position, TOL);
+                assertFloatEquals(0.5 * turns, servo.getData().position, TOL);
                 assertFloatEquals(0.5 * turns / rpm * 60, unaffectedTime, 0.5);
                 assertFloatNotEquals(0, unaffectedTime, 1e-5);
 
@@ -510,7 +510,7 @@ public class ServoImplExFakeUnitTest {
                 servo.setAngularVelOffset(0.6 * 2 * Math.PI * rpm / 60);
                 final double reversedPosition = directionName.equals("REVERSE") ? 1.0 : 0;
                 final double affectedTime = timeServoTo(reversedPosition, TOL);
-                assertFloatEquals(0, servo.getServoData().position, TOL);
+                assertFloatEquals(0, servo.getData().position, TOL);
                 assertFloatNotEquals(0, unaffectedTime, 1e-5);
                 System.out.println("🎈");
                 System.out.println("[small offset delays] affectedTime: " + affectedTime);
@@ -523,15 +523,15 @@ public class ServoImplExFakeUnitTest {
             void largeOffsetPrevents() {
                 // Verifiying that the position can be reached in time
                 final double unaffectedTime = timeServoTo(0.5, TOL);
-                assertFloatEquals(0.5 * turns, servo.getServoData().position, TOL);
+                assertFloatEquals(0.5 * turns, servo.getData().position, TOL);
                 assertFloatEquals(0.5 * turns / rpm * 60, unaffectedTime, 0.5);
                 assertFloatNotEquals(0, unaffectedTime, 1e-5);
 
                 // Testing the the position has (A) moved and (B) it not the target
                 servo.setAngularVelOffset(1.5 * 2 * Math.PI * rpm / 60);
                 final double affectedTime = timeServoTo(0, TOL);
-                assertFloatNotEquals(0, servo.getServoData().position, TOL);
-                assertFloatNotEquals(0.5 * turns, servo.getServoData().position, TOL);
+                assertFloatNotEquals(0, servo.getData().position, TOL);
+                assertFloatNotEquals(0.5 * turns, servo.getData().position, TOL);
                 assertFloatNotEquals(0, affectedTime, 1e-5);
                 // assertTrue(affectedTime / unaffectedTime >= 0.5);
             }
@@ -542,7 +542,7 @@ public class ServoImplExFakeUnitTest {
                 // Verifiying that the position can be reached in time
                 final double reversedPos = directionName.equals("REVERSE") ? 0 : 1.0; // Rotates around fully
                 final double unaffectedTime = timeServoTo(reversedPos, TOL);
-                assertFloatEquals(turns, servo.getServoData().position, TOL);
+                assertFloatEquals(turns, servo.getData().position, TOL);
                 assertFloatEquals(turns / rpm * 60, unaffectedTime, 0.5);
                 assertFloatNotEquals(0, unaffectedTime, 1e-5);
 
@@ -550,15 +550,15 @@ public class ServoImplExFakeUnitTest {
                 servo.addAngularVelOffset(0.75 * 2 * Math.PI * rpm / 60);
                 final double maxTime = 10 * turns / rpm * 60;
                 final double affectedTime = timeServoTo(0.5, TOL, maxTime, 0.001); // Give extra time because its gonna take a WHILE
-                assertFloatEquals(0.5 * turns, servo.getServoData().position, TOL);
+                assertFloatEquals(0.5 * turns, servo.getData().position, TOL);
                 assertFloatNotEquals(0, unaffectedTime, 1e-5);
                 assertTrue((0.5 * unaffectedTime) / affectedTime <= 0.3);
 
                 // Testing that with another offset added (not overriding)
                 servo.addAngularVelOffset(0.75 * 2 * Math.PI * rpm / 60);
                 final double affectedSumOfPartsTime = timeServoTo(1 - reversedPos, TOL, maxTime, 0.001);
-                assertFloatNotEquals(0, servo.getServoData().position, TOL);
-                assertFloatNotEquals(0.5 * turns, servo.getServoData().position, TOL);
+                assertFloatNotEquals(0, servo.getData().position, TOL);
+                assertFloatNotEquals(0.5 * turns, servo.getData().position, TOL);
                 assertFloatNotEquals(0, affectedSumOfPartsTime, 1e-5);
                 assertFloatEquals(maxTime, affectedSumOfPartsTime, 0.001);
             }

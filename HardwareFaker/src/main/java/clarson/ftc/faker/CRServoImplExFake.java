@@ -65,22 +65,21 @@ public class CRServoImplExFake extends CRServoImplEx implements Rotateable, Upda
 
     @Override
     public double update(double deltaSec) {
-        return ((ServoControllerExFake) this.getController())
-            .getData(this.getPortNumber())
-            .update(deltaSec);
+        return this.getData().update(deltaSec);
     }
 
     @Override
     public double addAngularVelOffset(double thetaPrime) {
-        return ((ServoControllerExFake) this.getController())
-            .getData(this.getPortNumber())
-            .addAngularVelOffset(thetaPrime);
+        return this.getData().addAngularVelOffset(thetaPrime);
     }
     
     @Override
     public double setAngularVelOffset(double thetaPrime) {
-        return ((ServoControllerExFake) this.getController())
-            .getData(this.getPortNumber())
-            .setAngularVelOffset(thetaPrime);
+        return this.getData().setAngularVelOffset(thetaPrime);
+    }
+
+    public ContinuousServoData getData() {
+        final ServoControllerExFake controller = (ServoControllerExFake) this.getController();
+        return (ContinuousServoData) controller.getData(this.getPortNumber());
     }
 }

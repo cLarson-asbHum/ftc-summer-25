@@ -148,22 +148,21 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, Upda
 
     @Override
     public double update(double deltaSec) {
-        return ((DcMotorControllerExFake) this.getController())
-            .getData(this.getPortNumber())
-            .update(deltaSec);
+        return this.getData().update(deltaSec);
     }
 
     @Override
     public double addAngularVelOffset(double thetaPrime) {
-        return ((DcMotorControllerExFake) this.getController())
-            .getData(this.getPortNumber())
-            .addAngularVelOffset(thetaPrime);
+        return this.getData().addAngularVelOffset(thetaPrime);
     }
     
     @Override
     public double setAngularVelOffset(double thetaPrime) {
-        return ((DcMotorControllerExFake) this.getController())
-            .getData(this.getPortNumber())
-            .setAngularVelOffset(thetaPrime);
+        return this.getData().setAngularVelOffset(thetaPrime);
+    }
+
+    public MotorData getData() {
+        // final DcMotorControllerExFake controller = (DcMotorControllerExFake) this.getController();
+        return ((DcMotorControllerExFake) this.getController()).getData(this.getPortNumber());
     }
 }

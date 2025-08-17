@@ -66,7 +66,7 @@ public class ServoImplExFake extends ServoImplEx implements Rotateable, Updateab
         this(data, controller, findAvaiablePort(controller));
     }
 
-    public PositionalServoData getServoData() {
+    public PositionalServoData getData() {
         // What is this, Lisp?
         return (PositionalServoData) (
             ((ServoControllerExFake) this.getController())
@@ -76,16 +76,16 @@ public class ServoImplExFake extends ServoImplEx implements Rotateable, Updateab
 
     @Override
     public double setAngularVelOffset(double thetaPrime) {
-        return getServoData().setAngularVelOffset(thetaPrime);
+        return getData().setAngularVelOffset(thetaPrime);
     }
     
     @Override
     public double addAngularVelOffset(double thetaPrime) {
-        return getServoData().addAngularVelOffset(thetaPrime);
+        return getData().addAngularVelOffset(thetaPrime);
     }
     
     @Override
     public double update(double deltaSec) {
-        return getServoData().update(deltaSec);
+        return getData().update(deltaSec);
     }
 }
