@@ -47,14 +47,29 @@ public interface Updater {
     /**
      * Registers the given Updateable so that it can be updated by this `Updater`.
      * 
-     * Circular references are handled on a case-by-case basis. It is expected
-     * that some 
+     * Circular references are handled on a case-by-case basis, depending on the
+     * specific implementation. 
      * 
      * @param newUpdateable What to register. A weak reference will be created.
      * @return Whether the Updateable was now added. False if it was added 
      * previously without being unregistered.
      */
     public boolean register(Updateable newUpdateable);
+
+    /**
+     * Registers the given Updateable so that it can be updated by this `Updater`.
+     * The Updateable then remembers the given Updater using its `remember` 
+     * method.
+     * 
+     * Circular references are handled on a case-by-case basis, depending on the
+     * specific implementation. 
+     * 
+     * @param newUpdateable What to register. A weak reference will be created.
+     * This Updateable will also remember the Updater it was added to.
+     * @return Whether the Updateable was now added. False if it was added 
+     * previously without being unregistered.
+     */
+    public boolean register(TwoWayUpdateable newUpdateable);
 
     /**
      * Removes an updateable. After this is method, `hasRegistered()` for the 
@@ -66,6 +81,18 @@ public interface Updater {
      * not registered (i.e. `hasRegistered()` returned false).
      */
     public boolean unregister(Updateable oldUpdateable);
+
+    /**
+     * Removes an updateable. After this is method, `hasRegistered()` for the 
+     * given Updateable is guaranteed to return false, until it is registered
+     * again, of course. The Updateable will forget that it was registered to
+     * this Updater.
+     * 
+     * @param oldUpdateable What to find and unregister. Forgets this Updater
+     * @return Whether the Updateable was now added. False if it was 
+     * not registered (i.e. `hasRegistered()` returned false).
+     */
+    public boolean unregister(TwoWayUpdateable oldUpdateable);
 
     /**
      * Updates all Updateables registered with this updater. Management of bulk 

@@ -91,6 +91,61 @@ public class ModularUpdater implements Updater {
         registered.put(updateable, module);
         return true;
     }
+    
+    /**
+     * Registers the given Updateable so that it can be updated. Note that all
+     * updateables registered are stored **weakly**, so failing to unregister a
+     * forgotten updateable does **not** create a memory leak.
+     * 
+     * The module assigned to the given updateable is null; therefore, any 
+     * attempted bulk cache checks will throw a `NullPointerException`. This 
+     * does not allow the same Updateable to be added twice, by adding one with
+     * a null LynxModule module and another with a correct module; all LynxModules
+     * are ignored.
+     * 
+     * @param updateable What to register. A weak reference will be created.
+     * @return Whether the Updateable was now added. False if it was added 
+     * previously without being unregistered.
+     */
+    @Override
+    public boolean register(TwoWayUpdateable updateable) {
+        if(hasRegistered(updateable)) {
+            return false;
+        }
+
+        updateable.remember(this);
+        registered.put(updateable, null);
+        return true;
+    }
+
+    /**
+     * Registers the given Updateable so that it can be updated. Note that all
+     * updateables registered are stored **weakly**, so failing to unregister a
+     * forgotten updateable does **not** create a memory leak. 
+     * 
+     * This also causes the given TwoWayUpdateable to remember that it was 
+     * registered with this ModularUpdater. The memory lasts an indefinite 
+     * amount of time but is guaranteed to end when `forget()` is called, which
+     * can happend through `unregister()`.
+     * 
+     * The Updateable is assigned the given LynxModule, allowing the usage of 
+     * bulk cache check methods. This does not allow the same Updateable to be 
+     * added twice, by adding one witha null LynxModule module and another with 
+     * a correct module; all LynxModules are ignored.
+     * 
+     * @param updateable What to register. A weak reference will be created.
+     * @return Whether the Updateable was now added. False if it was added 
+     * previously without being unregistered.
+     */
+    public boolean register(TwoWayUpdateable updateable, LynxModule module) {
+        if(hasRegistered(updateable)) {
+            return false;
+        }
+
+        updateable.remember(this);
+        registered.put(updateable, module);
+        return true;
+    }
 
     /**
      * Removes an updateable. After this is method, `hasRegistered()` for the 
@@ -107,6 +162,27 @@ public class ModularUpdater implements Updater {
             return false;
         }
 
+        registered.remove(updateable);
+        return true;
+    }
+
+    /**
+     * Removes an updateable. After this is method, `hasRegistered()` for the 
+     * given Updateable is guaranteed to return false, until it is registered
+     * again, of course. The Updateable then forgets that it was ever 
+     * registered with this Updater.
+     * 
+     * @param updateable What to unregister. 
+     * @return Whether the Updateable was now added. False if it was 
+     * not registered (i.e. `hasRegistered()` returned false).
+     */
+    @Override
+    public boolean unregister(TwoWayUpdateable updateable) {
+        if(!hasRegistered(updateable)) {
+            return false;
+        }
+
+        updateable.forget(this);
         registered.remove(updateable);
         return true;
     }
