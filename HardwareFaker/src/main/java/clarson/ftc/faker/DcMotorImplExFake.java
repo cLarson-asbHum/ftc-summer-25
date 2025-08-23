@@ -43,7 +43,9 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoW
      */
     private static int findAvaiablePort(DcMotorControllerExFake controller) {
         for(int i = 0; i < 4; i++) {
-            controller.isPortAvailable(i);
+            if(controller.isPortAvailable(i)) {
+                return i;
+            }
         }
 
         // The method would've early returned if any was avaiable

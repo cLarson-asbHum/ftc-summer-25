@@ -26,7 +26,11 @@ public class MotorData implements Rotateable, Updateable {
      * @return
      */
     public static MotorData copyForMotor(DcMotorImplEx motor, MotorData data) {
-        final MotorData result = new MotorData(motor, 0, 0);
+        final MotorData result = new MotorData(
+            motor, 
+            data.maxTicksPerSec / data.ticksPerRev * 60, 
+            data.ticksPerRev
+        );
         result.copyAvailableProperties(data);
         return result;
     }
