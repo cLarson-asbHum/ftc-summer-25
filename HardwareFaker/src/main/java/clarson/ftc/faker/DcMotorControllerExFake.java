@@ -1,37 +1,65 @@
 package clarson.ftc.faker;
 
+import com.qualcomm.hardware.lynx.LynxModule;
+import com.qualcomm.hardware.lynx.commands.core.LynxGetBulkInputDataCommand;
+import com.qualcomm.hardware.lynx.commands.core.LynxGetMotorEncoderPositionCommand;
+import com.qualcomm.hardware.lynx.commands.core.LynxIsMotorAtTargetCommand;
+import com.qualcomm.robotcore.exception.RobotCoreException;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorControllerEx;
+import com.qualcomm.robotcore.hardware.LynxModuleDescription;
 import com.qualcomm.robotcore.hardware.PIDCoefficients;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
+
+import static com.qualcomm.robotcore.hardware.HardwareDevice.Manufacturer;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
 import java.util.Map;
-// import java.util.WeakHashMap;
 import java.util.HashMap;
 
-import static com.qualcomm.robotcore.hardware.HardwareDevice.Manufacturer;
-
 public class DcMotorControllerExFake implements DcMotorControllerEx {
-    protected Map<Integer, MotorData> motors = new HashMap<>(4, 1.0f);
+    public static LynxModuleHardwareFake createUniqueModule() throws RobotCoreException, InterruptedException {
+        final LynxUsbDeviceImplFake device = new LynxUsbDeviceImplFake();
+        final LynxModule module = device.getOrAddModule(
+            new LynxModuleDescription.Builder(-1, true)
+                .setUserModule()
+                .build()
+        );
+        device.armOrPretend();
+        return (LynxModuleHardwareFake) module;
+    }
 
     /**
-     * Constructs a new DcMotorControllerExFake with the given motors instantly
-     * connected. 
-     * w
-     * @param motorData The motors and their data to be connected. The actuator
-     * field must point to a non-null motor with a valid `getPortNumber()` 
-     * return value.
+     * Constructs a new DcMotorControllerExFake whose module is null if an error 
+     * is thrown while trying to create a unique module for it.
+     * 
+     * @return A newly constructed controller.
      */
-    public DcMotorControllerExFake(MotorData... motorData) {
-        super();
-        for(final MotorData motorDatum : motorData) {
-            this.connect(motorDatum);
+    public static DcMotorControllerExFake createPossiblyWithNullModule() {
+        try {
+            return new DcMotorControllerExFake();
+        } catch(RobotCoreException | InterruptedException err) {
+            return new DcMotorControllerExFake(null);
         }
+    }
+
+    protected LynxModuleHardwareFake module;
+    protected Map<Integer, MotorData> motors = new HashMap<>(4, 1.0f);
+
+    public DcMotorControllerExFake() throws RobotCoreException, InterruptedException {
+        this(createUniqueModule());
+    }
+
+    public DcMotorControllerExFake(LynxModuleHardwareFake module) {
+        this.module = module;
+    }
+
+    public void setLynxModule(LynxModuleHardwareFake newModule) {
+        this.module = newModule;
     }
 
     /**
@@ -153,10 +181,19 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     @Override
     public double getMotorVelocity(int port) {
-        if(!getData(port).isEnabled) {
-            // When not enabled, the motor does not give or take any data.
-            return 0;
+        if(module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
+            final LynxModule.BulkData data = module.recordBulkCachingCommandIntent(
+                new LynxGetBulkInputDataCommand(module),
+                "motorVelocity" + port
+            );
+            return data.getMotorVelocity(port);
         }
+
+        // TODO: I don't think this check is necessary nor accurate
+        // if(!getData(port).isEnabled) {
+        //     // When not enabled, the motor does not give or take any data.
+        //     return 0;
+        // }
 
         return getData(port).getActualVelocity();
     }
@@ -221,6 +258,17 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     @Override
     public boolean isMotorOverCurrent(int port) {
+        if(module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
+            // Bulk Cache is enabled; get the data from the bulk cache!
+            // Record...Intent() also creates new BulkData if the cache is 
+            // clear or the same data was requested twice in BulkCachingMode.AUTO
+            final LynxModule.BulkData data = module.recordBulkCachingCommandIntent(
+                new LynxGetBulkInputDataCommand(this.module),
+                "motorOverCurrent" + port
+            );
+            return data.isMotorOverCurrent(port);
+        }
+
         return getMotorCurrent(port, CurrentUnit.AMPS) > getData(port).currentAlertAmps;
     }
 
@@ -297,6 +345,15 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
     
     @Override
     public boolean isBusy(int port) {
+        // Not sure why *this* is one of the methods that is bulk cached... but sure.
+        if(module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
+            final LynxModule.BulkData data = module.recordBulkCachingCommandIntent(
+                new LynxIsMotorAtTargetCommand(module, port),
+                ""
+            );
+            return data.isMotorBusy(port);
+        }
+
         return getData(port).isBusy;
     }
     
@@ -328,6 +385,14 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
     
     @Override
     public int getMotorCurrentPosition(int port) {
+        if(module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
+            final LynxModule.BulkData data = module.recordBulkCachingCommandIntent(
+                new LynxGetMotorEncoderPositionCommand(module, port),
+                "" // Intentionally empty, as the command above is not a LynxGetBulkInputDatatCommand
+            );
+            return data.getMotorCurrentPosition(port);
+        }
+
         return (int) Math.round(getData(port).position);
     }
     

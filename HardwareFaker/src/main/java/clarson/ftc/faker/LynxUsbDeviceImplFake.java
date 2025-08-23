@@ -174,9 +174,9 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
         super(null, createFakeSerial(), null, usbManagerFake = new RobotUsbManagerFake(lastFakeSerial));
         // All hardware lists are left null.
 
-        System.out.println("[impl fake init] serial: " + lastFakeSerial);
-        System.out.println("[impl fake init] subUsb serial: " + usbManagerFake.fake.serial);
-        System.out.println("[impl fake init] usbDevice: " + usbManagerFake.openBySerialNumber(lastFakeSerial));
+        // System.out.println("[impl fake init] serial: " + lastFakeSerial);
+        // System.out.println("[impl fake init] subUsb serial: " + usbManagerFake.fake.serial);
+        // System.out.println("[impl fake init] usbDevice: " + usbManagerFake.openBySerialNumber(lastFakeSerial));
     }  
 
 
@@ -452,7 +452,7 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
 
             resetNetworkTransmissionLock();
             // startPollingForIncomingDatagrams();
-            System.out.println("[arm impl fake] known modules: " + this.getKnownModules());
+            // System.out.println("[arm impl fake] known modules: " + this.getKnownModules());
             pingAndQueryKnownInterfaces();
             // startRegularPinging();
             // RobotLog.vv(TAG, "...done armDevice()");
@@ -508,8 +508,9 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
 
             synchronized (this.knownModules) {
                 if (!this.knownModules.containsKey(moduleAddress)) {
-                    module = new LynxModule(
-                        this, moduleAddress, 
+                    module = new LynxModuleHardwareFake(
+                        this, 
+                        moduleAddress, 
                         moduleDescription.isParent,
                         moduleDescription.isUserModule
                     );

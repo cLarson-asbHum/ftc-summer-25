@@ -87,7 +87,7 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoW
      */
     public DcMotorImplExFake(double rpm, double ticksPerRev, double initialPosition) {
         super(
-            new DcMotorControllerExFake(), 
+            DcMotorControllerExFake.createPossiblyWithNullModule(), 
             0, 
             DcMotor.Direction.FORWARD, 
             getFakeConfiguration(rpm, ticksPerRev)
