@@ -5,10 +5,14 @@ import com.qualcomm.robotcore.hardware.ServoController;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.ServoConfigurationType;
 import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
 
+import clarson.ftc.faker.updater.Updater;
 import clarson.ftc.faker.updater.Rotateable;
-import clarson.ftc.faker.updater.Updateable;
+import clarson.ftc.faker.updater.TwoWayUpdateable;
 
-public class CRServoImplExFake extends CRServoImplEx implements Rotateable, Updateable {
+import java.util.Set;
+import java.util.HashSet;
+
+public class CRServoImplExFake extends CRServoImplEx implements Rotateable, TwoWayUpdateable {
     public final static ServoConfigurationType getFakeConfiguration(ContinuousServoData data) {
         return new ServoConfigurationType();
     }
@@ -27,6 +31,8 @@ public class CRServoImplExFake extends CRServoImplEx implements Rotateable, Upda
         // The method would've early returned if any was avaiable
         return -1;
     }
+
+    private Set<Updater> updaters = new HashSet<>();
     
     public CRServoImplExFake(double rpm) {
         this(rpm, 0, PwmRange.defaultRange);
@@ -81,5 +87,15 @@ public class CRServoImplExFake extends CRServoImplEx implements Rotateable, Upda
     public ContinuousServoData getData() {
         final ServoControllerExFake controller = (ServoControllerExFake) this.getController();
         return (ContinuousServoData) controller.getData(this.getPortNumber());
+    }
+
+    @Override
+    public void remember(Updater updater) {
+        this.updaters.add(updater);
+    }
+
+    @Override 
+    public void forget(Updater updater) {
+        this.updaters.remove(updater);
     }
 }

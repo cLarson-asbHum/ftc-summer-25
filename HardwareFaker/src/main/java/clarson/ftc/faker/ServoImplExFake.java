@@ -3,10 +3,14 @@ package clarson.ftc.faker;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.ServoConfigurationType;
 
+import clarson.ftc.faker.updater.Updater;
 import clarson.ftc.faker.updater.Rotateable;
-import clarson.ftc.faker.updater.Updateable;
+import clarson.ftc.faker.updater.TwoWayUpdateable;
 
-public class ServoImplExFake extends ServoImplEx implements Rotateable, Updateable {
+import java.util.HashSet;
+import java.util.Set;
+
+public class ServoImplExFake extends ServoImplEx implements Rotateable, TwoWayUpdateable {
     public final static ServoConfigurationType getFakeConfiguration(PositionalServoData data) {
         return new ServoConfigurationType();
     }
@@ -25,6 +29,8 @@ public class ServoImplExFake extends ServoImplEx implements Rotateable, Updateab
         // The method would've early returned if any was avaiable
         return -1;
     }
+
+    private Set<Updater> updaters = new HashSet<>();
 
     public ServoImplExFake(double rpm, double maxRevolutions) {
         this(rpm, maxRevolutions, 0, PwmRange.defaultRange);
@@ -87,5 +93,15 @@ public class ServoImplExFake extends ServoImplEx implements Rotateable, Updateab
     @Override
     public double update(double deltaSec) {
         return getData().update(deltaSec);
+    }
+
+    @Override
+    public void remember(Updater updater) {
+        this.updaters.add(updater);
+    }
+
+    @Override 
+    public void forget(Updater updater) {
+        this.updaters.remove(updater);
     }
 }

@@ -4,12 +4,17 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorController;
 import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
-import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
 
 import clarson.ftc.faker.updater.Rotateable;
-import clarson.ftc.faker.updater.Updateable;
+import clarson.ftc.faker.updater.TwoWayUpdateable;
+import clarson.ftc.faker.updater.Updater;
 
-public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, Updateable {
+import java.util.HashSet;
+import java.util.Set;
+
+import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
+
+public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoWayUpdateable {
     public final static MotorConfigurationType getFakeConfiguration(MotorData data) {
         final MotorConfigurationType result = new MotorConfigurationType();
         result.setTicksPerRev(data.ticksPerRev);
@@ -44,6 +49,8 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, Upda
         // The method would've early returned if any was avaiable
         return -1;
     }
+
+    private Set<Updater> updaters = new HashSet<>();
 
     /**
      * Constructs a new DcMotorImplExFake, isolated from all other hardware. 
@@ -164,5 +171,15 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, Upda
     public MotorData getData() {
         // final DcMotorControllerExFake controller = (DcMotorControllerExFake) this.getController();
         return ((DcMotorControllerExFake) this.getController()).getData(this.getPortNumber());
+    }
+
+    @Override
+    public void remember(Updater updater) {
+        this.updaters.add(updater);
+    }
+
+    @Override 
+    public void forget(Updater updater) {
+        this.updaters.remove(updater);
     }
 }
