@@ -17,5 +17,5 @@ import java.lang.annotation.Inherited;
 @Target(ElementType.METHOD)
 @Inherited
 public @interface SimulateDelay {
-    public HandleBulkCache handleBulkCache();
+    public UpdatesWhen value();
 }
