@@ -1,8 +1,13 @@
 package clarson.ftc.faker.updater;
 
+import com.qualcomm.hardware.lynx.commands.core.LynxDekaInterfaceCommand;
 import com.qualcomm.hardware.lynx.LynxModule;
+import com.qualcomm.hardware.lynx.LynxModule.BulkData;
+
+import clarson.ftc.faker.LynxModuleHardwareFake;
 
 import java.util.Collections;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.WeakHashMap;
 
@@ -15,7 +20,7 @@ import java.util.WeakHashMap;
  */
 public class ModularUpdater implements Updater {
 
-    protected final WeakHashMap<Updateable, LynxModule> registered = new WeakHashMap<>(52, 1.0f);
+    protected final WeakHashMap<Updateable, LynxModuleHardwareFake> registered = new WeakHashMap<>(52, 1.0f);
 
     /**
      * Updates all Updateables registered with this updater. If any Updaters
@@ -83,7 +88,7 @@ public class ModularUpdater implements Updater {
      * @return Whether the Updateable was now added. False if it was added 
      * previously without being unregistered.
      */
-    public boolean register(Updateable updateable, LynxModule module) {
+    public boolean register(Updateable updateable, LynxModuleHardwareFake module) {
         if(hasRegistered(updateable)) {
             return false;
         }
@@ -137,7 +142,7 @@ public class ModularUpdater implements Updater {
      * @return Whether the Updateable was now added. False if it was added 
      * previously without being unregistered.
      */
-    public boolean register(TwoWayUpdateable updateable, LynxModule module) {
+    public boolean register(TwoWayUpdateable updateable, LynxModuleHardwareFake module) {
         if(hasRegistered(updateable)) {
             return false;
         }
@@ -185,5 +190,126 @@ public class ModularUpdater implements Updater {
         updateable.forget(this);
         registered.remove(updateable);
         return true;
+    }
+
+    /**
+     * Updates all registered Updateables only if the bulk cache for the given 
+     * Updateable's module does not contain up-to-date data. This always updates
+     * if the module is in `BulkCachingMode.OFF` and never updates if in 
+     * `MANUAL`. `BulkCachingMode.AUTO` works as normal, updating if the cache 
+     * is not clear and the same device (or, more accurately, Updateable), has 
+     * called for the same data twice since the last obtained bulk data.
+     * 
+     * If the Updateable is not registered, its LynxModuleHardwareFake is null, 
+     * or is itself null, then a `NullPointerException` is thrown. 
+     * 
+     * @param deltaSec How much time has elapsed since last call, in seconds.
+     * @param updateable Who issued the command for bulk-able data. 
+     * @param command Dictates how the data is to be requested. 
+     * @param tag The bulk data "group". Only commands sent with the same group
+     * can cause a module in `BulkCachingMode.AUTO` to get new BulkData
+     * @return Whether all registered Updateables were updated.
+     */
+    public boolean updateAllIfCacheOutdated(
+        double delaySec,
+        Updateable updateable, 
+        LynxDekaInterfaceCommand<?> command, 
+        String tag
+    ) {
+        // Getting the module
+        final LynxModuleHardwareFake module = registered.get(updateable);
+
+        if(!hasRegistered(updateable)) {
+            throw new NoSuchElementException("Updateable " + updateable + " has not been registered.");
+        }
+
+        if(module == null) {
+            throw new NullPointerException("Cannot check bulk cache on null LynxModuleHardwareFake");
+        }
+
+        // Getting the new bulk data. The LynxUsbDeviceImplFake does not simulate delay upon transmission
+        // (at least, as of Aug 23 2025) and so we test for whether the bulk would be reset by this command.
+        if(module.wouldIssueBulkData(command, tag)) {
+            updateAll(delaySec);
+            return true;
+        }
+
+        // Bulk data did not change. No updating done.
+        return false;
+    }
+    
+    /**
+     * Updates all registered Updateables only if the bulk cache for the given 
+     * Updateable's module does not contain up-to-date data. This always updates
+     * if the module is in `BulkCachingMode.OFF` and never updates if in 
+     * `MANUAL`. `BulkCachingMode.AUTO` works as normal, updating if the cache 
+     * is not clear and the same device (or, more accurately, Updateable), has 
+     * called for the same data twice since the last obtained bulk data.
+     * 
+     * If the Updateable is not registered, its LynxModuleHardwareFake is null, 
+     * or is itself null, then a `NullPointerException` is thrown. 
+     * 
+     * @param delay Source of the delay length from who called this method.
+     * @param updateable Who issued the command for bulk-able data. 
+     * @param command Dictates how the data is to be requested. 
+     * @param tag The bulk data "group". Only commands sent with the same group
+     * can cause a module in `BulkCachingMode.AUTO` to get new BulkData
+     * @return Whether all registered Updateables were updated.
+     */
+    public boolean updateAllIfCacheOutdated(
+        UpdateDelaySource delay,
+        Updateable updateable, 
+        LynxDekaInterfaceCommand<?> command, 
+        String tag
+    ) {
+        return updateAllIfCacheOutdated(delay.length, updateable, command, tag);
+    }
+    
+    /**
+     * Updates all registered Updateables only if the bulk cache for the given 
+     * Updateable's module does not contain up-to-date data. This always updates
+     * if the module is in `BulkCachingMode.OFF` and never updates if in 
+     * `MANUAL`. `BulkCachingMode.AUTO` works as normal, updating if the cache 
+     * is not clear and the same device (or, more accurately, Updateable), has 
+     * called for the same data twice since the last obtained bulk data.
+     * 
+     * If the Updateable is not registered, its LynxModuleHardwareFake is null, 
+     * or is itself null, then a `NullPointerException` is thrown. 
+     * 
+     * @param delay Source of the delay length from who called this method.
+     * @param updateable Who issued the command for bulk-able data. 
+     * @param command Dictates how the data is to be requested. 
+     * @return Whether all registered Updateables were updated.
+     */
+    public boolean updateAllIfCacheOutdated(
+        UpdateDelaySource delay,
+        Updateable updateable, 
+        LynxDekaInterfaceCommand<?> command
+    ) {
+        return updateAllIfCacheOutdated(delay.length, updateable, command, "");
+    }
+    
+    /**
+     * Updates all registered Updateables only if the bulk cache for the given 
+     * Updateable's module does not contain up-to-date data. This always updates
+     * if the module is in `BulkCachingMode.OFF` and never updates if in 
+     * `MANUAL`. `BulkCachingMode.AUTO` works as normal, updating if the cache 
+     * is not clear and the same device (or, more accurately, Updateable), has 
+     * called for the same data twice since the last obtained bulk data.
+     * 
+     * If the Updateable is not registered, its LynxModuleHardwareFake is null, 
+     * or is itself null, then a `NullPointerException` is thrown. 
+     * 
+     * @param deltaSec How much time has elapsed since last call, in seconds.
+     * @param updateable Who issued the command for bulk-able data. 
+     * @param command Dictates how the data is to be requested. 
+     * @return Whether all registered Updateables were updated.
+     */
+    public boolean updateAllIfCacheOutdated(
+        double delaySec,
+        Updateable updateable, 
+        LynxDekaInterfaceCommand<?> command
+    ) {
+        return updateAllIfCacheOutdated(delaySec, updateable, command, "");
     }
 }

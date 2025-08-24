@@ -47,6 +47,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
         }
     }
 
+    private boolean shouldReread = false;
     protected LynxModuleHardwareFake module;
     protected Map<Integer, MotorData> motors = new HashMap<>(4, 1.0f);
 
@@ -60,6 +61,10 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     public void setLynxModule(LynxModuleHardwareFake newModule) {
         this.module = newModule;
+    }
+
+    public LynxModuleHardwareFake getLynxModule() {
+        return this.module;
     }
 
     /**
@@ -139,6 +144,28 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
         return motors.get(port).actuator;
     }
 
+    /**
+     * Dictates whether bulk cache-accesssing methods are forced instead to 
+     * re-read their data. This can be used to get the data of a method like
+     * `getCurrentPosition()` for a bulk cache without causing infinite 
+     * recursion (because `getCurrentPosition()` sends a command for a new 
+     * cache, which requires calling `getCurrentPosition()` to get its data, and 
+     * so on).
+     * 
+     * This **always** takes precedence over the bulk caching mode. Setting 
+     * bulk caching to AUTO does (nearly) nothing if this has been set to true 
+     * 
+     * @param shouldReread True if bulk caching should be ignored. False for 
+     * normal operation.
+     * @return Whether any change was made. False if was already set to the 
+     * given `shouldReread` value
+     */
+    public boolean setForceReread(boolean shouldReread) {
+        final boolean oldValue = this.shouldReread;
+        this.shouldReread = shouldReread;
+        return oldValue != shouldReread;
+    }
+
     @Override
     public void setMotorEnable(int port) {
         getData(port).isEnabled = true;
@@ -181,7 +208,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     @Override
     public double getMotorVelocity(int port) {
-        if(module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
+        if(!shouldReread && module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
             final LynxModule.BulkData data = module.recordBulkCachingCommandIntent(
                 new LynxGetBulkInputDataCommand(module),
                 "motorVelocity" + port
@@ -258,7 +285,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
 
     @Override
     public boolean isMotorOverCurrent(int port) {
-        if(module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
+        if(!shouldReread && module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
             // Bulk Cache is enabled; get the data from the bulk cache!
             // Record...Intent() also creates new BulkData if the cache is 
             // clear or the same data was requested twice in BulkCachingMode.AUTO
@@ -346,7 +373,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
     @Override
     public boolean isBusy(int port) {
         // Not sure why *this* is one of the methods that is bulk cached... but sure.
-        if(module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
+        if(!shouldReread && module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
             final LynxModule.BulkData data = module.recordBulkCachingCommandIntent(
                 new LynxIsMotorAtTargetCommand(module, port),
                 ""
@@ -385,7 +412,7 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
     
     @Override
     public int getMotorCurrentPosition(int port) {
-        if(module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
+        if(!shouldReread && module.getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
             final LynxModule.BulkData data = module.recordBulkCachingCommandIntent(
                 new LynxGetMotorEncoderPositionCommand(module, port),
                 "" // Intentionally empty, as the command above is not a LynxGetBulkInputDatatCommand

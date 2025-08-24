@@ -129,14 +129,8 @@ public class LynxModuleHardwareFake extends LynxModule {
         synchronized (bulkCachingLock) {
             List<LynxDekaInterfaceCommand<?>> commands = bulkCachingHistory.get(tag);
 
-            if (bulkCachingMode == BulkCachingMode.AUTO) {
+            if (bulkCachingMode == BulkCachingMode.AUTO && commands != null) {
                 // automatically clear the cache if necessary based on the command history
-                if (commands == null) {
-                    return false;
-                    // commands = new ArrayList<>();
-                    // bulkCachingHistory.put(tag, commands);
-                }
-
                 for (LynxDekaInterfaceCommand<?> otherCommand : commands) {
                     if (otherCommand.getDestModuleAddress() == command.getDestModuleAddress() &&
                             otherCommand.getCommandNumber() == command.getCommandNumber() &&
@@ -148,6 +142,7 @@ public class LynxModuleHardwareFake extends LynxModule {
             }
 
             if (lastBulkData == null) {
+                // System.out.println("dumness 800");
                 return true;
             }
 

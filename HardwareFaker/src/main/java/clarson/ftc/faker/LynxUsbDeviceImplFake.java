@@ -9,6 +9,10 @@ import com.qualcomm.hardware.lynx.commands.LynxMessage;
 import com.qualcomm.hardware.lynx.commands.LynxCommand;
 import com.qualcomm.hardware.lynx.commands.core.LynxGetBulkInputDataCommand;
 import com.qualcomm.hardware.lynx.commands.core.LynxGetBulkInputDataResponse;
+import com.qualcomm.hardware.lynx.commands.core.LynxIsMotorAtTargetCommand;
+import com.qualcomm.hardware.lynx.commands.core.LynxIsMotorAtTargetResponse;
+import com.qualcomm.hardware.lynx.commands.core.LynxGetMotorEncoderPositionCommand;
+import com.qualcomm.hardware.lynx.commands.core.LynxGetMotorEncoderPositionResponse;
 import com.qualcomm.hardware.lynx.commands.standard.LynxKeepAliveCommand;
 import com.qualcomm.hardware.lynx.commands.standard.LynxStandardCommand;
 import com.qualcomm.hardware.lynx.commands.standard.LynxQueryInterfaceCommand;
@@ -27,7 +31,6 @@ import com.qualcomm.robotcore.hardware.usb.RobotUsbDevice;
 import com.qualcomm.robotcore.hardware.usb.RobotUsbModule;
 import com.qualcomm.robotcore.util.SerialNumber;
 import com.qualcomm.robotcore.hardware.DeviceManager;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
 
 import java.util.concurrent.TimeoutException;
 import java.util.Arrays;
@@ -166,7 +169,7 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
 
     private static RobotUsbManagerFake usbManagerFake;
     private static SerialNumber lastFakeSerial;
-    private DcMotorEx[] motors = null;
+    private DcMotorImplExFake[] motors = null;
     // private AnalogInput[] analogInputs = null;
     // private DigitalChannel[] digitalChannels = null;
 
@@ -194,7 +197,7 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
      * @return The payload. Contains all data for `LynxGetBulkInputDataResponse`
      */
     protected byte[] readBulkDataPayload(
-        DcMotorEx[] motors/* , 
+        DcMotorImplExFake[] motors/* , 
         DigitalChannel[] digitals,
         AnalogInput[] analogs
         */
@@ -234,7 +237,9 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
         throwIfWrongSize(motors, LynxConstants.NUMBER_OF_MOTORS, "motor");
         for(int i = 0; i < motors.length; i++) {
             // Serializing the encoder position as a little endian int.
-            final DcMotorEx motor = motors[i];
+            final DcMotorImplExFake motor = motors[i];
+            ((DcMotorControllerExFake) motor.getController()).setForceReread(true);  // Preventing infinite recursion
+
             final int encoderPosition = motor.getCurrentPosition();
             payload[ENCODER_START + 4 * i]     = getByte(encoderPosition, 0);
             payload[ENCODER_START + 4 * i + 1] = getByte(encoderPosition, 1);
@@ -253,7 +258,16 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
             final int isOverCurrentBit = (motor.isOverCurrent() ? 1 : 0) << i;
             final int isAtTargetBit = (!motor.isBusy() ? 1 : 0) << (i + 4);
             payload[STATUS_START] = (byte) (payload[STATUS_START] | isOverCurrentBit | isAtTargetBit);
+
+            ((DcMotorControllerExFake) motor.getController()).setForceReread(false);
         }
+
+        //#region DEV START: Logging the payload
+        for(int i = 0; i < payload.length; i++) {
+            System.out.println("    [read bulk payload] byte: " + payload[i]);
+        }
+        
+        //#endregion DEV END
 
         // Validating and reading the analog input        
         // throwIfWrongSize(analogs, LynxConstants.NUMBER_OF_ANALOG_INPUTS, "analog input");
@@ -316,6 +330,25 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
             response = handleBulkDataCommand(message.getModule());
         }
 
+        if(message instanceof LynxGetMotorEncoderPositionCommand) {
+            response = new LynxGetMotorEncoderPositionResponse(message.getModule());
+            final DcMotorImplExFake motor = motors[message.toPayloadByteArray()[0]];
+            final int position = motor.getCurrentPosition();
+            response.fromPayloadByteArray(new byte[] { 
+                 getByte(position, 0),
+                 getByte(position, 1),
+                 getByte(position, 2),
+                 getByte(position, 3)
+            });
+        }
+        
+
+        if(message instanceof LynxIsMotorAtTargetCommand) {
+            response = new LynxIsMotorAtTargetResponse(message.getModule());
+            final DcMotorImplExFake motor = motors[message.toPayloadByteArray()[0]];
+            response.fromPayloadByteArray(new byte[]{ motor.isBusy() ? (byte) 0x00 : (byte) 0x01 });
+        }
+
         if(message instanceof LynxQueryInterfaceCommand) {
             response = handleQueryInterfaceCommand(message.getModule());
         }
@@ -372,7 +405,7 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
         return;
     }
 
-    public LynxUsbDeviceImplFake setMotors(DcMotorEx[] newMotors) {
+    public LynxUsbDeviceImplFake setMotors(DcMotorImplExFake[] newMotors) {
         this.motors = newMotors;
         return this;
     }
@@ -386,6 +419,11 @@ public class LynxUsbDeviceImplFake extends LynxUsbDeviceImpl {
         this.analogInputs = newInputs;
         return this;
     }*/
+ 
+    @Override
+    public void acquireNetworkTransmissionLock(LynxMessage message) {
+        // Do nothing, as you hopefully shouldn't be using concurrency nor the network.
+    }
  
     /*
      * This method "armDevice(RobotUsbDevice device)", modified from the 
