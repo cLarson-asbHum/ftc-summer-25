@@ -1,11 +1,17 @@
 package clarson.ftc.faker;
 
 import com.qualcomm.robotcore.hardware.ServoImplEx;
+import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.ServoConfigurationType;
 
-import clarson.ftc.faker.updater.Updater;
 import clarson.ftc.faker.updater.Rotateable;
+import clarson.ftc.faker.updater.SimulateDelay;
 import clarson.ftc.faker.updater.TwoWayUpdateable;
+import clarson.ftc.faker.updater.Updateable;
+import clarson.ftc.faker.updater.Updater;
+
+import static clarson.ftc.faker.updater.UpdatesWhen.ALWAYS;
+import static clarson.ftc.faker.updater.Updater.UpdateDelaySource.SERVO;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -115,4 +121,50 @@ public class ServoImplExFake extends ServoImplEx implements Rotateable, TwoWayUp
         this.updaters.remove(updater);
     }
 
+    // #############################################################################
+    //   NOTE: The following section only is super methods with delay simulation
+    //         Nothing below is more informative than its Javadoc
+    // #############################################################################
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setPosition(double position) {
+        Updater.updateAllOnce(updaters, SERVO);
+        super.setPosition(position);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public double getPosition() {
+        Updater.updateAllOnce(updaters, SERVO);
+        return super.getPosition();
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setPwmRange(PwmControl.PwmRange range) {
+        Updater.updateAllOnce(updaters, SERVO);
+        super.setPwmRange(range);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setPwmEnable() {
+        Updater.updateAllOnce(updaters, SERVO);
+        super.setPwmEnable();
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setPwmDisable() {
+        Updater.updateAllOnce(updaters, SERVO);
+        super.setPwmDisable();
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public boolean isPwmEnabled() {
+        Updater.updateAllOnce(updaters, SERVO);
+        return super.isPwmEnabled();
+    }
 }
