@@ -70,8 +70,18 @@ public class CRServoImplExFake extends CRServoImplEx implements Rotateable, TwoW
     }
 
     @Override
-    public double update(double deltaSec) {
+    public double update(double deltaSec) {       
         return this.getData().update(deltaSec);
+    }
+
+    @Override
+    public boolean setUpdatingEnabled(boolean newUpdatingEnabled) {
+        return this.getData().setUpdatingEnabled(newUpdatingEnabled);
+    }
+
+    @Override
+    public boolean isUpdatingEnabled() {
+        return this.getData().isUpdatingEnabled();
     }
 
     @Override

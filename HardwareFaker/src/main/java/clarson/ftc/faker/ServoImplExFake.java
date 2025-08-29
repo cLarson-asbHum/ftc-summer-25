@@ -96,6 +96,16 @@ public class ServoImplExFake extends ServoImplEx implements Rotateable, TwoWayUp
     }
 
     @Override
+    public boolean isUpdatingEnabled() {
+        return this.getData().isUpdatingEnabled();
+    }
+
+    @Override
+    public boolean setUpdatingEnabled(boolean newUpdatingEnabled) {
+        return this.getData().setUpdatingEnabled(newUpdatingEnabled);
+    }
+
+    @Override
     public void remember(Updater updater) {
         this.updaters.add(updater);
     }
@@ -104,4 +114,5 @@ public class ServoImplExFake extends ServoImplEx implements Rotateable, TwoWayUp
     public void forget(Updater updater) {
         this.updaters.remove(updater);
     }
+
 }

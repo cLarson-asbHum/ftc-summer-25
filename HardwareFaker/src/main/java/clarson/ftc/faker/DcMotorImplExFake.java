@@ -91,7 +91,7 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoW
         super(
             DcMotorControllerExFake.createPossiblyWithNullModule(), 
             0, 
-            DcMotor.Direction.FORWARD, 
+            DcMotorImplEx.Direction.FORWARD, 
             getFakeConfiguration(rpm, ticksPerRev)
         );
 
@@ -118,7 +118,7 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoW
      * advantage is given to any specific port(s).
      */
     public DcMotorImplExFake(MotorData data, DcMotorControllerExFake controller, int portNumber) {
-        super(controller, portNumber, DcMotor.Direction.FORWARD, getFakeConfiguration(data));
+        super(controller, portNumber, DcMotorImplEx.Direction.FORWARD, getFakeConfiguration(data));
 
         if(!controller.connect(MotorData.copyForMotor(this, data))) {
             throw new IllegalArgumentException("Port number <" + portNumber + "> is not available on controller");
@@ -145,7 +145,7 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoW
         // super(
         //     controller, 
         // findAvaiablePort(controller), 
-        // DcMotor.Direction.FORWARD, 
+        // DcMotorImplEx.Direction.FORWARD, 
         // getFakeConfiguration(data));
 
         // if(!controller.connect(MotorData.copyForMotor(this, data))) {
@@ -158,6 +158,16 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoW
     @Override
     public double update(double deltaSec) {
         return this.getData().update(deltaSec);
+    }
+
+    @Override
+    public boolean setUpdatingEnabled(boolean newUpdatingEnabled) {
+        return this.getData().setUpdatingEnabled(newUpdatingEnabled);
+    }
+
+    @Override
+    public boolean isUpdatingEnabled() {
+        return this.getData().isUpdatingEnabled();
     }
 
     @Override
@@ -184,4 +194,5 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoW
     public void forget(Updater updater) {
         this.updaters.remove(updater);
     }
+   
 }

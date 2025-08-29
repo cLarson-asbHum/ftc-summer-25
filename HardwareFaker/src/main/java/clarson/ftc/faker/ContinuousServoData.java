@@ -123,6 +123,10 @@ public class ContinuousServoData extends ServoData<CRServoImplEx> {
      */
     @Override
     public double update(double deltaSec) {
+        if(!this.isUpdatingEnabled()) {
+            return 0;
+        }
+
         final double actualVel = getActualVelocity();
         final double delta = actualVel * deltaSec;
         this.position += delta;

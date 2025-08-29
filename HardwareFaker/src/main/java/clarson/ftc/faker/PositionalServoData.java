@@ -136,6 +136,10 @@ public class PositionalServoData extends ServoData<ServoImplEx> {
 
     @Override
     public double update(double deltaSec) {
+        if(!this.isUpdatingEnabled()) {
+            return 0;
+        }
+
         final double startPosition = position;
         final double actualVel = getActualVelocity();
         final double delta = actualVel * deltaSec;

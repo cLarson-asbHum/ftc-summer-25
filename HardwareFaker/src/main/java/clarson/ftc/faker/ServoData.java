@@ -13,7 +13,7 @@ import clarson.ftc.faker.updater.Updateable;
 import static com.qualcomm.robotcore.hardware.PwmControl.PwmRange;
 
 abstract public class ServoData<T extends HardwareDevice> implements Rotateable, Updateable {
-    
+    private boolean isUpdatingEnabled = true;
 
     // Descriptor fields - These describe unchaning properties of the servo itself. 
     public final T actuator;
@@ -141,4 +141,14 @@ abstract public class ServoData<T extends HardwareDevice> implements Rotateable,
     }
 
     abstract public double getActualVelocity();
+    
+    @Override
+    public boolean setUpdatingEnabled(boolean newUpdatingEnabled) {
+        return this.isUpdatingEnabled != (this.isUpdatingEnabled = newUpdatingEnabled);
+    }
+
+    @Override
+    public boolean isUpdatingEnabled() {
+        return this.isUpdatingEnabled;
+    }
 }

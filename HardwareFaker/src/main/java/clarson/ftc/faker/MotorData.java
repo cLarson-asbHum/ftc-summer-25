@@ -35,6 +35,8 @@ public class MotorData implements Rotateable, Updateable {
         return result;
     }
 
+    private boolean isUpdatingEnabled = true;
+
     // Descriptor fields - These describe unchaning properties of the motor itself. 
     public final DcMotorImplEx actuator;
     public final double ticksPerRev;
@@ -242,6 +244,10 @@ public class MotorData implements Rotateable, Updateable {
 
     @Override
     public double update(double deltaSec) {
+        if(!this.isUpdatingEnabled()) {
+            return 0;
+        }
+
         final double actualVel = getActualVelocity();
         final double delta = actualVel * deltaSec;
         this.position += delta;
@@ -265,5 +271,15 @@ public class MotorData implements Rotateable, Updateable {
             this.updateRunToVelocity(actualVel);
         } 
         return delta;
+    }
+
+    @Override
+    public boolean setUpdatingEnabled(boolean newUpdatingEnabled) {
+        return this.isUpdatingEnabled != (this.isUpdatingEnabled = newUpdatingEnabled);
+    }
+
+    @Override
+    public boolean isUpdatingEnabled() {
+        return this.isUpdatingEnabled;
     }
 }
