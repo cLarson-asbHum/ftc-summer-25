@@ -6,7 +6,9 @@ import com.qualcomm.hardware.lynx.LynxModule.BulkData;
 
 import clarson.ftc.faker.LynxModuleHardwareFake;
 
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -19,8 +21,73 @@ import java.util.WeakHashMap;
  * caching on ordinary LynxModules.
  */
 public class ModularUpdater implements Updater {
+    public static boolean updateAllOnceIfAnyCacheOutdated(
+        Collection<Updater> updaters,
+        double deltaSec,
+        Updateable updateable,
+        LynxDekaInterfaceCommand<?> command,
+        String tag
+    ) {
+        // Testing if any Updater has an outdated cache
+        boolean hasFoundOutdatedCache = false;
+
+        anyUpdatersOutdatedLoop:
+        for(final Updater updater : updaters) {
+            if(!(updater instanceof ModularUpdater)) {
+                continue;
+            }
+
+            final ModularUpdater modUpdater = (ModularUpdater) updater;
+            modUpdater.throwIfInputInvalid(updateable, modUpdater.registered.get(updateable));
+
+            if(modUpdater.isCacheOutdated(updateable, command, tag)) {
+                break anyUpdatersOutdatedLoop;
+            }
+        }
+
+        if(!hasFoundOutdatedCache) {
+            return false;
+        }
+
+        // An outdated cache was found! Updating all of the updaters
+        for(final Updater updater : updaters) {
+            updater.updateAll(deltaSec);
+        }
+
+        return true;
+    }
+
+    public static boolean updateAllOnceIfAnyCacheOutdated(
+        Collection<Updater> updaters,
+        UpdateDelaySource delay,
+        Updateable updateable,
+        LynxDekaInterfaceCommand<?> command,
+        String tag
+    ) {
+        return updateAllOnceIfAnyCacheOutdated(updaters, delay.length, updateable, command, tag);
+    }
+
+    public static boolean updateAllOnceIfAnyCacheOutdated(
+        Collection<Updater> updaters,
+        double deltaSec,
+        Updateable updateable,
+        LynxDekaInterfaceCommand<?> command
+    ) {
+        return updateAllOnceIfAnyCacheOutdated(updaters, deltaSec, updateable, command, "");
+    }
+
+    public static boolean updateAllOnceIfAnyCacheOutdated(
+        Collection<Updater> updaters,
+        UpdateDelaySource delay,
+        Updateable updateable,
+        LynxDekaInterfaceCommand<?> command
+    ) {
+        return updateAllOnceIfAnyCacheOutdated(updaters, delay.length, updateable, command, "");
+    }
 
     protected final WeakHashMap<Updateable, LynxModuleHardwareFake> registered = new WeakHashMap<>(52, 1.0f);
+    protected final WeakHashMap<Updateable, Boolean> enablingStatuses = new WeakHashMap<>(registered.size(), 1.0f);
+    protected boolean hasEnablingStatuses = false;
 
     /**
      * Updates all Updateables registered with this updater. If any Updaters
@@ -33,6 +100,32 @@ public class ModularUpdater implements Updater {
         for(final Updateable updateable : registered.keySet()) {
             updateable.update(deltaSec);
         }
+    }
+
+    @Override
+    public void setUpdatingEnabledAll(boolean newUpdatingEnabled) {
+        registered.keySet().forEach(updateable -> updateable.setUpdatingEnabled(newUpdatingEnabled));
+    }
+
+    @Override 
+    public void rememberEnablingStatus() {
+        for(final Updateable updateable : registered.keySet()) {
+            enablingStatuses.put(updateable, updateable.isUpdatingEnabled());
+        }
+        this.hasEnablingStatuses = true;
+    }
+
+    @Override
+    public boolean applyAndForgetEnablingStatus() {
+        if(!this.hasEnablingStatuses) {
+            return false;
+        }
+
+        this.hasEnablingStatuses = false;
+        for(final Map.Entry<Updateable, Boolean> status : enablingStatuses.entrySet()) {
+            status.getKey().setUpdatingEnabled(status.getValue());
+        }
+        return true;
     }
 
     /**
@@ -193,6 +286,51 @@ public class ModularUpdater implements Updater {
     }
 
     /**
+     * Returns whether `updateAllIfCacheOutdated()` would update. False can mean
+     * that either the cache is not outdated and/or the given inputs would throw
+     * exceptions.
+     * 
+     * @param updateable
+     * @param command
+     * @param tag
+     * @return Whether `updateAllIfCacheOutdated()` would update all Updateables
+     */
+    public boolean isCacheOutdated(
+        Updateable updateable, 
+        LynxDekaInterfaceCommand<?> command, 
+        String tag
+    ) {
+        // Getting the module
+        final LynxModuleHardwareFake module = registered.get(updateable);
+
+        if(module == null || !hasRegistered(updateable)) {
+            return false;
+        }
+
+        // Getting the new bulk data. The LynxUsbDeviceImplFake does not simulate delay upon transmission
+        // (at least, as of Aug 23 2025) and so we test for whether the bulk would be reset by this command.
+        if(module.wouldIssueBulkData(command, tag)) {
+            return true;
+        }
+
+        // Bulk data did not change. No updating done.
+        return false;
+    }
+
+    /**
+     * Throws a runtime exception if the LynxModule is not valid
+     */
+    private void throwIfInputInvalid(Updateable updateable, LynxModuleHardwareFake module) {
+        if(!hasRegistered(updateable)) {
+            throw new NoSuchElementException("Updateable " + updateable + " has not been registered.");
+        }
+
+        if(module == null) {
+            throw new NullPointerException("Cannot check bulk cache on null LynxModuleHardwareFake");
+        }
+    }
+
+    /**
      * Updates all registered Updateables only if the bulk cache for the given 
      * Updateable's module does not contain up-to-date data. This always updates
      * if the module is in `BulkCachingMode.OFF` and never updates if in 
@@ -211,26 +349,19 @@ public class ModularUpdater implements Updater {
      * @return Whether all registered Updateables were updated.
      */
     public boolean updateAllIfCacheOutdated(
-        double delaySec,
+        double deltaSec,
         Updateable updateable, 
         LynxDekaInterfaceCommand<?> command, 
         String tag
     ) {
         // Getting the module
         final LynxModuleHardwareFake module = registered.get(updateable);
-
-        if(!hasRegistered(updateable)) {
-            throw new NoSuchElementException("Updateable " + updateable + " has not been registered.");
-        }
-
-        if(module == null) {
-            throw new NullPointerException("Cannot check bulk cache on null LynxModuleHardwareFake");
-        }
+        throwIfInputInvalid(updateable, module);
 
         // Getting the new bulk data. The LynxUsbDeviceImplFake does not simulate delay upon transmission
         // (at least, as of Aug 23 2025) and so we test for whether the bulk would be reset by this command.
         if(module.wouldIssueBulkData(command, tag)) {
-            updateAll(delaySec);
+            updateAll(deltaSec);
             return true;
         }
 
@@ -306,10 +437,10 @@ public class ModularUpdater implements Updater {
      * @return Whether all registered Updateables were updated.
      */
     public boolean updateAllIfCacheOutdated(
-        double delaySec,
+        double deltaSec,
         Updateable updateable, 
         LynxDekaInterfaceCommand<?> command
     ) {
-        return updateAllIfCacheOutdated(delaySec, updateable, command, "");
+        return updateAllIfCacheOutdated(deltaSec, updateable, command, "");
     }
 }
