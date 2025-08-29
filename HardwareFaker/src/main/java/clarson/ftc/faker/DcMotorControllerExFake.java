@@ -166,6 +166,15 @@ public class DcMotorControllerExFake implements DcMotorControllerEx {
         return oldValue != shouldReread;
     }
 
+    /**
+     * Constructs a `LynxGetMotorEncoderCommand` with this module and the given motor
+     * 
+     * @return A new, untransmitted `LynxGetMotorEncoderPositionCommand`.
+     */
+    public LynxGetMotorEncoderPositionCommand getEncoderCommand(DcMotorImplExFake motor) {
+        return new LynxGetMotorEncoderPositionCommand(this.module, motor.getPortNumber());
+    }
+
     @Override
     public void setMotorEnable(int port) {
         getData(port).isEnabled = true;

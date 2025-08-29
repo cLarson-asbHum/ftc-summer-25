@@ -365,6 +365,7 @@ class ModularUpdaterUnitTest {
                 final double servoExpOg = servoExpData.position;
 
                 // Setting the powers
+                updater.setUpdatingEnabledAll(false); // Preventing automatic updates
                 motorNone.setPower(1.0);
                 servoNone.setPower(1.0);
 
@@ -375,6 +376,7 @@ class ModularUpdaterUnitTest {
                 servoExp.setDirection(DcMotorImplExFake.Direction.REVERSE);
                 servoExp.setPower(1.0);
                 servoExp.setAngularVelOffset(1.5 * 2 * Math.PI * servoExpData.maxRevsPerSec);
+                updater.setUpdatingEnabledAll(true); // Allowing manual updates
 
                 // Updating and comparing
                 updater.updateAll(1.0);

@@ -1,17 +1,36 @@
 package clarson.ftc.faker;
 
+import com.qualcomm.hardware.lynx.commands.core.LynxGetMotorEncoderPositionCommand;
+import com.qualcomm.hardware.lynx.commands.core.LynxGetBulkInputDataCommand;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorController;
 import com.qualcomm.robotcore.hardware.DcMotorImplEx;
+import com.qualcomm.robotcore.hardware.LynxModuleDescription;
+import com.qualcomm.robotcore.hardware.PIDCoefficients;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.robotcore.exception.RobotCoreException;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 
+import static com.qualcomm.robotcore.hardware.HardwareDevice.Manufacturer;
+
+import clarson.ftc.faker.updater.ModularUpdater;
 import clarson.ftc.faker.updater.Rotateable;
+import clarson.ftc.faker.updater.SimulateDelay;
 import clarson.ftc.faker.updater.TwoWayUpdateable;
+import clarson.ftc.faker.updater.Updateable;
 import clarson.ftc.faker.updater.Updater;
 
+import static clarson.ftc.faker.updater.UpdatesWhen.ALWAYS;
+import static clarson.ftc.faker.updater.UpdatesWhen.ON_BULK_READS;
+import static clarson.ftc.faker.updater.Updater.UpdateDelaySource.MOTOR;
+
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
 
 public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoWayUpdateable {
@@ -194,5 +213,246 @@ public class DcMotorImplExFake extends DcMotorImplEx implements Rotateable, TwoW
     public void forget(Updater updater) {
         this.updaters.remove(updater);
     }
-   
+
+    // #############################################################################
+    //   NOTE: The following section only is super methods with delay simulation
+    //         Nothing below is more informative than its Javadoc
+    // #############################################################################
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public void setMotorType(MotorConfigurationType motorType) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setMotorType(motorType);
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public void resetDeviceConfigurationForOpMode() {
+        Updater.updateAllOnce(updaters, 2 * MOTOR.length);
+        super.resetDeviceConfigurationForOpMode();
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public void close() {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.close();
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public void setPower(double power) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setPower(power);
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public double getPower() {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.getPower();
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public boolean isBusy() {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.isBusy();
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public void setZeroPowerBehavior(DcMotorImplEx.ZeroPowerBehavior zeroPowerBehavior) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setZeroPowerBehavior(zeroPowerBehavior);
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public DcMotorImplEx.ZeroPowerBehavior getZeroPowerBehavior() {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.getZeroPowerBehavior();
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public void setPowerFloat() {
+        Updater.updateAllOnce(updaters, 2 * MOTOR.length);
+        super.setPowerFloat();
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public boolean getPowerFloat() {
+        Updater.updateAllOnce(updaters, 2 * MOTOR.length);
+        return super.getPowerFloat();
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public void setTargetPosition(int position) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setTargetPosition(position);
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public int getTargetPosition() {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.getTargetPosition();
+    }
+
+    @Override
+    @SimulateDelay(ON_BULK_READS)
+    public int getCurrentPosition() {
+        final LynxGetMotorEncoderPositionCommand command = new LynxGetMotorEncoderPositionCommand(
+            ((DcMotorControllerExFake) this.getController()).getLynxModule(),
+            this.getPortNumber()
+        );
+        ModularUpdater.updateAllOnceIfAnyCacheOutdated(updaters, MOTOR, this, command);
+        return super.getCurrentPosition();
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public void setMode(DcMotorImplEx.RunMode mode) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setMode(mode);
+    }
+
+    @Override
+    @SimulateDelay(ALWAYS)
+    public DcMotorImplEx.RunMode getMode() {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.getMode();
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setMotorEnable() {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setMotorEnable();
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setMotorDisable() {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setMotorDisable();
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public boolean isMotorEnabled() {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.isMotorEnabled();
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setVelocity(double angularRate) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setVelocity(angularRate);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setVelocity(double angularRate, AngleUnit unit) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setVelocity(angularRate, unit);
+    }
+    
+    @Override 
+    @SimulateDelay(ON_BULK_READS)
+    public double getVelocity() {
+        final String tag = "motorVelocity" + this.getPortNumber();
+        final LynxGetBulkInputDataCommand command = new LynxGetBulkInputDataCommand(
+            ((DcMotorControllerExFake) this.getController()).getLynxModule()
+        );
+        ModularUpdater.updateAllOnceIfAnyCacheOutdated(updaters, MOTOR, this, command, tag);
+        return super.getVelocity();
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public double getVelocity(AngleUnit unit) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.getVelocity(unit);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setPIDCoefficients(DcMotorImplEx.RunMode mode, PIDCoefficients pidCoefficients) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setPIDCoefficients(mode, pidCoefficients);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setPIDFCoefficients(DcMotorImplEx.RunMode mode, PIDFCoefficients pidfCoefficients) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setPIDFCoefficients(mode, pidfCoefficients);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setVelocityPIDFCoefficients(double p, double i, double d, double f) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setVelocityPIDFCoefficients(p, i, d, f);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setPositionPIDFCoefficients(double p) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setPositionPIDFCoefficients(p);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public PIDCoefficients getPIDCoefficients(DcMotorImplEx.RunMode mode) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.getPIDCoefficients(mode);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public PIDFCoefficients getPIDFCoefficients(DcMotorImplEx.RunMode mode) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.getPIDFCoefficients(mode);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public double getCurrent(CurrentUnit unit) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.getCurrent(unit);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public double getCurrentAlert(CurrentUnit unit) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        return super.getCurrentAlert(unit);
+    }
+    
+    @Override 
+    @SimulateDelay(ALWAYS)
+    public void setCurrentAlert(double current, CurrentUnit unit) {
+        Updater.updateAllOnce(updaters, MOTOR);
+        super.setCurrentAlert(current, unit);
+    }
+    
+    @Override 
+    @SimulateDelay(ON_BULK_READS)
+    public boolean isOverCurrent() {
+        final String tag = "motorOverCurrent" + this.getPortNumber();
+        final LynxGetBulkInputDataCommand command = new LynxGetBulkInputDataCommand(
+            ((DcMotorControllerExFake) this.getController()).getLynxModule()
+        );
+        ModularUpdater.updateAllOnceIfAnyCacheOutdated(updaters, MOTOR, this, command, tag);
+        return super.isOverCurrent();
+    }
+
 }
