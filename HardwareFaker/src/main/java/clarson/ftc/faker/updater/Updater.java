@@ -168,15 +168,15 @@ public interface Updater {
      * @param updaters Source of all the Updateables to update. 
      * @param deltaSec How long each update is to be simulated.
      */
-    public static void updateAllOnce(Collection<Updater> updaters, double deltaSec) {
+    public static <E extends Updater> void updateAllOnce(Collection<E> updaters, double deltaSec) {
         final Updater[] reversedUpdaters = new Updater[updaters.size()];
-        final Iterator<Updater> iterator = updaters.iterator();
+        final Iterator<E> iterator = updaters.iterator();
         for(int i = 0; i < updaters.size(); i++) {
             final Updater updater = iterator.next();
             updater.rememberEnablingStatus();
             updater.updateAll(deltaSec);
             updater.setUpdatingEnabledAll(false);
-            reversedUpdaters[i] = updater;
+            reversedUpdaters[reversedUpdaters.length - i - 1] = updater;
         }
 
         // Renabling to allow for Updateables to be updated later
@@ -201,7 +201,7 @@ public interface Updater {
      * @param updaters Source of all the Updateables to update. 
      * @param delay Source of the delay length from who called this method.
      */
-    public static void updateAllOnce(Collection<Updater> updaters, UpdateDelaySource delay) {
+    public static <E extends Updater> void updateAllOnce(Collection<E> updaters, UpdateDelaySource delay) {
         updateAllOnce(updaters, delay.length);
     }
 } 

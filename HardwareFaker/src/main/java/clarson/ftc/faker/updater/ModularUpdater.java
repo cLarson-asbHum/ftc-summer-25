@@ -21,8 +21,8 @@ import java.util.WeakHashMap;
  * caching on ordinary LynxModules.
  */
 public class ModularUpdater implements Updater {
-    public static boolean updateAllOnceIfAnyCacheOutdated(
-        Collection<Updater> updaters,
+    public static <E extends Updater> boolean updateAllOnceIfAnyCacheOutdated(
+        Collection<E> updaters,
         double deltaSec,
         Updateable updateable,
         LynxDekaInterfaceCommand<?> command,
@@ -38,9 +38,10 @@ public class ModularUpdater implements Updater {
             }
 
             final ModularUpdater modUpdater = (ModularUpdater) updater;
-            modUpdater.throwIfInputInvalid(updateable, modUpdater.registered.get(updateable));
+            // modUpdater.throwIfInputInvalid(updateable, modUpdater.registered.get(updateable));
 
             if(modUpdater.isCacheOutdated(updateable, command, tag)) {
+                hasFoundOutdatedCache = true;
                 break anyUpdatersOutdatedLoop;
             }
         }
@@ -50,15 +51,12 @@ public class ModularUpdater implements Updater {
         }
 
         // An outdated cache was found! Updating all of the updaters
-        for(final Updater updater : updaters) {
-            updater.updateAll(deltaSec);
-        }
-
+        Updater.updateAllOnce(updaters, deltaSec);
         return true;
     }
 
-    public static boolean updateAllOnceIfAnyCacheOutdated(
-        Collection<Updater> updaters,
+    public static <E extends Updater> boolean updateAllOnceIfAnyCacheOutdated(
+        Collection<E> updaters,
         UpdateDelaySource delay,
         Updateable updateable,
         LynxDekaInterfaceCommand<?> command,
@@ -67,8 +65,8 @@ public class ModularUpdater implements Updater {
         return updateAllOnceIfAnyCacheOutdated(updaters, delay.length, updateable, command, tag);
     }
 
-    public static boolean updateAllOnceIfAnyCacheOutdated(
-        Collection<Updater> updaters,
+    public static <E extends Updater> boolean updateAllOnceIfAnyCacheOutdated(
+        Collection<E> updaters,
         double deltaSec,
         Updateable updateable,
         LynxDekaInterfaceCommand<?> command
@@ -76,8 +74,8 @@ public class ModularUpdater implements Updater {
         return updateAllOnceIfAnyCacheOutdated(updaters, deltaSec, updateable, command, "");
     }
 
-    public static boolean updateAllOnceIfAnyCacheOutdated(
-        Collection<Updater> updaters,
+    public static <E extends Updater> boolean updateAllOnceIfAnyCacheOutdated(
+        Collection<E> updaters,
         UpdateDelaySource delay,
         Updateable updateable,
         LynxDekaInterfaceCommand<?> command
@@ -104,7 +102,10 @@ public class ModularUpdater implements Updater {
 
     @Override
     public void setUpdatingEnabledAll(boolean newUpdatingEnabled) {
-        registered.keySet().forEach(updateable -> updateable.setUpdatingEnabled(newUpdatingEnabled));
+        // registered.keySet().forEach(updateable -> updateable.setUpdatingEnabled(newUpdatingEnabled));
+        for(final Updateable updateable : registered.keySet()) {
+            updateable.setUpdatingEnabled(newUpdatingEnabled);
+        }
     }
 
     @Override 
@@ -125,6 +126,7 @@ public class ModularUpdater implements Updater {
         for(final Map.Entry<Updateable, Boolean> status : enablingStatuses.entrySet()) {
             status.getKey().setUpdatingEnabled(status.getValue());
         }
+        enablingStatuses.clear();
         return true;
     }
 

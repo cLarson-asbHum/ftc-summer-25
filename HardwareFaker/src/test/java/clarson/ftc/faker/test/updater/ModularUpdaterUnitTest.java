@@ -10,6 +10,7 @@ import clarson.ftc.faker.MotorData;
 import clarson.ftc.faker.ServoData;
 import clarson.ftc.faker.updater.ModularUpdater;
 import clarson.ftc.faker.updater.Updateable;
+import clarson.ftc.faker.updater.Updater;
 
 import static clarson.ftc.faker.test.TestUtil.*;
 
@@ -25,8 +26,6 @@ import com.qualcomm.hardware.lynx.commands.standard.LynxKeepAliveCommand;
 import com.qualcomm.robotcore.hardware.LynxModuleDescription;
 import com.qualcomm.robotcore.exception.RobotCoreException;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
-
 import org.junit.jupiter.api.AssertionFailureBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -39,9 +38,19 @@ import org.junit.jupiter.params.Parameter;
 import org.junit.jupiter.params.ParameterizedClass;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Stream;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 class ModularUpdaterUnitTest {
     @DisplayName("Can construct")
@@ -338,6 +347,10 @@ class ModularUpdaterUnitTest {
             final MotorData motorExpData = motorExp.getData();
             final ContinuousServoData servoExpData = servoExp.getData();
 
+            boolean expectingUpdateAll = false;
+            ModularUpdater mockUpdater;
+
+
             @BeforeEach
             void addHardware() {
                 assertTrue(updater.register(motorNone, null));
@@ -435,89 +448,121 @@ class ModularUpdaterUnitTest {
                 assertFloatEquals(servoExpOg, servoExpData.position, eps);
             }
         
+            /**
+             * Mocks a ModularUpdater, asserting that updateall is called 
+             * from updateAllOnlyIfCacheOutdated only if expectingUpdateAll is true.
+             * Test should set expectingUpdateAll to true when an update is expected;
+             * otherwise, set it to false.
+             * 
+             * updateAllOnlyIfCacheOutdated also asserts that its return value accurately 
+             * represents whether updateAll was called. This behavior is checked no matter
+             * the value of expectingUpdateAll.
+             */
+            class ModularUpdaterMock extends ModularUpdater implements Updater {
+                public boolean isInCacheUpdateStack = false;
+                public boolean updateAllCalled = false;
+                private final ModularUpdater actualUpdater;
+
+                ModularUpdaterMock(ModularUpdater updater) {
+                    this.actualUpdater = updater;
+                    // this.registered = updater.registered;
+
+                    // Adding all the motors
+                    if(updater.hasRegistered(motorNone)) this.registered.put(motorNone, null);
+                    if(updater.hasRegistered(motorCont)) this.registered.put(motorCont, control);
+                    if(updater.hasRegistered(motorExp))  this.registered.put(motorExp,  expansion);
+                }
+
+                @Override
+                public void updateAll(double deltaSec) {
+                    System.out.println("[mock updateAll] did! <" + this.toString() + ">");
+                    updateAllCalled = true;
+
+                    if(isInCacheUpdateStack) {
+                        assertTrue(expectingUpdateAll, "updateAll called from cache only when expected");
+                    }
+                    
+                    actualUpdater.updateAll(deltaSec);
+                }
+
+                @Override
+                public void setUpdatingEnabledAll(boolean newE) {
+                    actualUpdater.setUpdatingEnabledAll(newE);
+                }
+
+                @Override
+                public void rememberEnablingStatus() {
+                    actualUpdater.rememberEnablingStatus();
+                }
+
+                @Override
+                public boolean applyAndForgetEnablingStatus() {
+                    return actualUpdater.applyAndForgetEnablingStatus();
+                }
+
+                @Override
+                public boolean updateAllIfCacheOutdated(
+                    double deltaSec, 
+                    Updateable up, 
+                    LynxDekaInterfaceCommand<?> command, 
+                    String tag
+                ) {
+                    // didJustUpdateBulkData = false;
+                    awaitUpdateAll(List.of(this));
+
+                    final LynxModuleHardwareFake upModule = this.registered.get(up);
+                    final LynxModuleHardwareFake controllerModule = ((DcMotorControllerExFake) ((DcMotorImplExFake) up).getController()).getLynxModule();
+
+                    System.out.println("[update all cache] controller is control: " + (controllerModule == control));
+                    System.out.println("[update all cache] controller is exp: " + (controllerModule == expansion));
+                    System.out.println("[update all cache] up is control: " + (upModule == control));
+                    System.out.println("[update all cache] up is exp: " + (upModule == expansion));
+
+                    assertEquals(
+                        upModule, 
+                        controllerModule, 
+                        "they have the same module"
+                    );
+
+                    // updateAllIfCacheOutdated sets didJustUpdateBulkData if a LynxGetBulkInputDataCommand was sent
+                    // This is because of the LynxUsbDeviceImplFakeMock we set before each test.
+                    final boolean result = super.updateAllIfCacheOutdated(deltaSec, up, command, tag);
+                    assertEquals(expectingUpdateAll, result, "result of updateAllIfCacheOutdated represents updateAll invokation");
+                    // assertEquals(expectingUpdateAll, updateAllCalled, "updateAll called when expected");
+                    // if(this.registered.get(up).getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
+                    //     // Bulk data gets are not done during OFF, even though data is obtained
+                    //     assertEquals(expectingUpdateAll, didJustUpdateBulkData, "BulkDataCommand was transmitted to LynxUsbDeviceImpl");
+                    // }
+
+                    endAwait(List.of(this));
+                    return result;
+                }
+            
+                @Override
+                public boolean isCacheOutdated(Updateable up, LynxDekaInterfaceCommand<?> command, String tag) {
+                    return actualUpdater.isCacheOutdated(up, command, tag);
+                }
+            }
+            
+
+            private void awaitUpdateAll(Collection<ModularUpdaterMock> mocks) {
+                for(final ModularUpdaterMock mock : mocks) {
+                    mock.isInCacheUpdateStack = true;
+                    mock.updateAllCalled = false;
+                }
+            }
+
+            private void endAwait(Collection<ModularUpdaterMock> mocks) {
+                for(final ModularUpdaterMock mock : mocks) {
+                    assertEquals(expectingUpdateAll, mock.updateAllCalled, "updateAll called when expected, <" + mock + ">");
+                    mock.isInCacheUpdateStack = false;
+                }
+            }
+
             @DisplayName("Bulk Cache UpdateAll")
             @Nested
             class BulkCacheUpdateAll {
-                boolean expectingUpdateAll = false;
                 boolean didJustUpdateBulkData = false;
-                ModularUpdater mockUpdater;
-
-                /**
-                 * Mocks a ModularUpdater, asserting that updateall is called 
-                 * from updateAllOnlyIfCacheOutdated only if expectingUpdateAll is true.
-                 * Test should set expectingUpdateAll to true when an update is expected;
-                 * otherwise, set it to false.
-                 * 
-                 * updateAllOnlyIfCacheOutdated also asserts that its return value accurately 
-                 * represents whether updateAll was called. This behavior is checked no matter
-                 * the value of expectingUpdateAll.
-                 */
-                class ModularUpdaterMock extends ModularUpdater {
-                    private boolean isInCacheUpdateStack = false;
-                    private boolean updateAllCalled = false;
-                    private final ModularUpdater actualUpdater;
-
-                    ModularUpdaterMock(ModularUpdater updater) {
-                        this.actualUpdater = updater;
-                        // this.registered = updater.registered;
-
-                        // Adding all the motors
-                        if(updater.hasRegistered(motorNone)) this.registered.put(motorNone, null);
-                        if(updater.hasRegistered(motorCont)) this.registered.put(motorCont, control);
-                        if(updater.hasRegistered(motorExp))  this.registered.put(motorExp,  expansion);
-                    }
-
-                    @Override
-                    public void updateAll(double deltaSec) {
-                        System.out.println("[mock updateAll] did!");
-                        updateAllCalled = true;
-
-                        if(isInCacheUpdateStack) {
-                            assertTrue(expectingUpdateAll, "updateAll called from cache only when expected");
-                        }
-                        
-                        actualUpdater.updateAll(deltaSec);
-                    }
-
-                    @Override
-                    public boolean updateAllIfCacheOutdated(
-                        double deltaSec, 
-                        Updateable up, 
-                        LynxDekaInterfaceCommand<?> command, 
-                        String tag
-                    ) {
-                        didJustUpdateBulkData = false;
-                        isInCacheUpdateStack  = true;
-                        updateAllCalled = false;
-
-                        final LynxModuleHardwareFake upModule = this.registered.get(up);
-                        final LynxModuleHardwareFake controllerModule = ((DcMotorControllerExFake) ((DcMotorImplExFake) up).getController()).getLynxModule();
-
-                        System.out.println("[update all cache] controller is control: " + (controllerModule == control));
-                        System.out.println("[update all cache] controller is exp: " + (controllerModule == expansion));
-                        System.out.println("[update all cache] up is control: " + (upModule == control));
-                        System.out.println("[update all cache] up is exp: " + (upModule == expansion));
-
-                        assertEquals(
-                            upModule, 
-                            controllerModule, 
-                            "they have the same module"
-                        );
-
-                        // updateAllIfCacheOutdated sets didJustUpdateBulkData if a LynxGetBulkInputDataCommand was sent
-                        // This is because of the LynxUsbDeviceImplFakeMock we set before each test.
-                        final boolean result = super.updateAllIfCacheOutdated(deltaSec, up, command, tag);
-                        assertEquals(expectingUpdateAll, result, "result of updateAllIfCacheOutdated represents updateAll invokation");
-                        assertEquals(expectingUpdateAll, updateAllCalled, "updateAll called when expected");
-                        // if(this.registered.get(up).getBulkCachingMode() != LynxModule.BulkCachingMode.OFF) {
-                        //     // Bulk data gets are not done during OFF, even though data is obtained
-                        //     assertEquals(expectingUpdateAll, didJustUpdateBulkData, "BulkDataCommand was transmitted to LynxUsbDeviceImpl");
-                        // }
-
-                        isInCacheUpdateStack = false;
-                        return result;
-                    }
-                }
 
                 /**
                  * Mocks LynxUsbDeviceImplFake, asserting that BulkDataCommands are transmitted
@@ -660,6 +705,80 @@ class ModularUpdaterUnitTest {
                     assertEquals(Math.round(motorContData.position), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
                 }
 
+                @DisplayName("isCacheOutdated is correct for BulkCachingMode.AUTO")
+                @Test
+                void isCacheOutdatedCorrectForAuto() {                    
+                    System.out.println("🚒");
+                    control.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
+
+                    // Storing the original position and then updating it.
+                    final double originalPosition = motorContData.position;
+                    motorCont.setPower(1.0);
+                    
+                    // Checking beahvior. Unexpected behavior throws in updateAllIfCacheOutdated
+                    // No data has been requested yet, so this will pass
+                    final LynxGetMotorEncoderPositionCommand command1 = new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber());
+                    expectingUpdateAll = true;
+                    assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command1, ""));
+                    assertDoesNotThrow(() -> mockUpdater.updateAllIfCacheOutdated(
+                        1.0, 
+                        motorCont,
+                        command1
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    final double secondPosition = motorCont.getCurrentPosition();
+                    System.out.println("[auto update clear] actual pos: " + motorContData.position);
+                    assertNotEquals(Math.round(originalPosition), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+
+                    // Bulk cache has been obtained, but the next command is new, so no update
+                    final LynxGetBulkInputDataCommand command2 = new LynxGetBulkInputDataCommand(control);
+                    expectingUpdateAll = false;
+                    assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command2, ""));
+                    assertDoesNotThrow(() -> mockUpdater.updateAllIfCacheOutdated(
+                        1.0, 
+                        motorCont,
+                        command2
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    final double thirdPosition = motorCont.getCurrentPosition();
+                    System.out.println("[auto update clear] actual pos: " + motorContData.position);
+                    assertNotEquals(Math.round(originalPosition), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), thirdPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(secondPosition, thirdPosition); // NOTE: Delay from getCurrentPosition is disabled
+
+                    // Cleaing and seeing that an update comes through
+                    final LynxGetMotorEncoderPositionCommand command3 = new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber());
+                    expectingUpdateAll = true;
+                    assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command3, ""));
+                    assertDoesNotThrow(() -> mockUpdater.updateAllIfCacheOutdated(
+                        1.0, 
+                        motorCont,
+                        command3
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    final double qincePosition = motorCont.getCurrentPosition();
+                    assertNotEquals(Math.round(originalPosition), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(secondPosition, qincePosition);
+                    assertEquals(Math.round(motorContData.position), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+
+                    // Command not new this time, so no new update
+                    final LynxGetBulkInputDataCommand command4 = new LynxGetBulkInputDataCommand(control);
+                    expectingUpdateAll = false;
+                    assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command4, ""));
+                    assertDoesNotThrow(() -> mockUpdater.updateAllIfCacheOutdated(
+                        1.0, 
+                        motorCont,
+                        command4
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    final double quadPosition = motorCont.getCurrentPosition();
+                    System.out.println("[auto update clear] actual pos: " + motorContData.position);
+                    assertNotEquals(Math.round(originalPosition), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), quadPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(qincePosition, quadPosition); // NOTE: Delay from getCurrentPosition is disabled
+                }
+
                 @DisplayName("BulkCachingMode.AUTO updates on duplicate request")
                 @Test
                 void autoUpdatesOnlyOnDuplicateRequest() {
@@ -747,6 +866,29 @@ class ModularUpdaterUnitTest {
                     assertEquals(Math.round(motorContData.position), motorCont.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
                 }
                 
+                @DisplayName("isCacheOutdated is correct for BulkCachingMode.OFF")
+                @Test
+                void isCacheOutdatedCorrectForOff() {
+                    // Storing the original position and then updating it.
+                    final double originalPosition = motorContData.position;
+                    motorCont.setPower(1.0);
+                    
+                    // Checking beahvior. Unexpected behavior throws in updateAllIfCacheOutdated
+                    final LynxGetMotorEncoderPositionCommand command1 = new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber());
+                    expectingUpdateAll = true;
+                    assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command1, ""));
+                    assertDoesNotThrow(() -> mockUpdater.updateAllIfCacheOutdated(
+                        1.0, 
+                        motorCont,
+                        command1
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(originalPosition, motorCont.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), motorCont.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                
+                }
+
+                
                 @Timeout(value = 1, unit = SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
                 @DisplayName("BulkCachingMode.MANUAL Only updates on clear")
                 @Test
@@ -808,6 +950,585 @@ class ModularUpdaterUnitTest {
                     assertNotEquals(Math.round(originalPosition), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
                     assertNotEquals(thirdPosition, qincePosition);
                     assertEquals(Math.round(motorContData.position), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                }
+            
+                
+                @DisplayName("isCacheOutdated is correct for BulkCachingMode.MANUAL")
+                @Test
+                void isCacheOutdatedCorrectForManual() {
+                    System.out.println("🎈");
+                    control.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+
+                    // Storing the original position and then updating it.
+                    final double originalPosition = motorContData.position;
+                    motorCont.setPower(1.0);
+                    
+                    // Checking beahvior. Unexpected behavior throws in updateAllIfCacheOutdated
+                    // No data has been requested yet, so this will pass
+                    final LynxGetMotorEncoderPositionCommand command1 = new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber());
+                    expectingUpdateAll = true;
+                    assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command1, ""));
+                    assertDoesNotThrow(() -> mockUpdater.updateAllIfCacheOutdated(
+                        1.0, 
+                        motorCont,
+                        command1
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    final double secondPosition = motorCont.getCurrentPosition();
+                    System.out.println("[manual update clear] actual pos: " + motorContData.position);
+                    assertNotEquals(Math.round(originalPosition), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+
+                    // Checking beahvior. Unexpected behavior throws in updateAllIfCacheOutdated
+                    // We just got a bulk cache, so no new update will be gotten.
+                    final LynxGetMotorEncoderPositionCommand command2 = new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber());
+                    expectingUpdateAll = false;
+                    assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command2, ""));
+                    assertDoesNotThrow(() -> mockUpdater.updateAllIfCacheOutdated(
+                        1.0, 
+                        motorCont,
+                        command2
+                    ));
+                    final double thirdPosition = motorCont.getCurrentPosition();
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(Math.round(originalPosition), thirdPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), thirdPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(secondPosition, thirdPosition);
+
+                    // Asserting that when forced to update, the cache stilll wont change
+                    expectingUpdateAll = true;
+                    assertDoesNotThrow(() -> mockUpdater.updateAll(1.0));
+                    final double quadPos= motorCont.getCurrentPosition();
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(Math.round(originalPosition), quadPos);
+                    assertNotEquals(Math.round(motorContData.position), quadPos);
+                    assertEquals(thirdPosition, quadPos);
+
+                    // Cleaing and seeing that an update comes through
+                    final LynxGetMotorEncoderPositionCommand command3 = new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber());
+                    control.clearBulkCache();
+                    expectingUpdateAll = true;
+                    assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command3, ""));
+                    assertDoesNotThrow(() -> mockUpdater.updateAllIfCacheOutdated(
+                        1.0, 
+                        motorCont,
+                        command3
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    final double qincePosition = motorCont.getCurrentPosition();
+                    assertNotEquals(Math.round(originalPosition), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(thirdPosition, qincePosition);
+                    assertEquals(Math.round(motorContData.position), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                }
+            }
+        
+            @DisplayName("MultiRegister")
+            @Nested
+            class MultiRegister {
+                ModularUpdater updater2 = new ModularUpdater();
+                ModularUpdater updater3 = new ModularUpdater();
+                List<ModularUpdaterMock> ups = null;
+
+                DcMotorImplExFake motorCont2 = new DcMotorImplExFake(new MotorData(100, 204), controlHubController);
+                DcMotorImplExFake motorCont3 = new DcMotorImplExFake(new MotorData(100, 304), controlHubController);
+                
+                MotorData data2 = motorCont2.getData();
+                MotorData data3 = motorCont3.getData();
+
+                @BeforeEach
+                void addHardwareToMockUpdaters() {
+                    System.out.println("");
+                    device.setMotors(new DcMotorImplExFake[]{ motorCont, motorCont2, motorCont3 });
+
+                    mockUpdater = new ModularUpdaterMock(updater);
+                    assertTrue(mockUpdater.hasRegistered(motorCont));
+
+                    for(final ModularUpdater up : new ModularUpdater[]{ updater2, updater3 }) {
+                        // assertTrue(up.register(servoCont, control));
+                        // assertTrue(up.register(motorNone, null));
+                        // assertTrue(up.register(motorExp, expansion));
+                        assertTrue(up.register(motorCont, control));
+                    }
+
+                    assertTrue(updater2.register(motorCont2, control));
+                    assertTrue(updater2.register(motorCont3, null));
+                    assertTrue(updater3.register(motorCont3, control));
+
+                    // Disabling automatic updates.
+                    for(final DcMotorImplExFake motor : motors) {
+                        motor.forget(updater);
+                        motor.forget(updater2);
+                        motor.forget(updater3);
+                        motor.forget(mockUpdater);
+                    }
+                    motorCont2.forget(updater);
+                    motorCont2.forget(updater2);
+                    motorCont2.forget(updater3);
+                    motorCont2.forget(mockUpdater);
+
+                    motorCont3.forget(updater);
+                    motorCont3.forget(updater2);
+                    motorCont3.forget(updater3);
+                    motorCont3.forget(mockUpdater);
+
+                    // Creating the mocks for the new updaters
+                    updater2 = new ModularUpdaterMock(updater2);
+                    updater3 = new ModularUpdaterMock(updater3);
+                    ups = Arrays.asList(new ModularUpdaterMock[]{ 
+                        (ModularUpdaterMock) mockUpdater, 
+                        (ModularUpdaterMock) updater2, 
+                        (ModularUpdaterMock) updater3 
+                    });
+
+                    // Disabling even more automatic updates
+                    for(final DcMotorImplExFake motor : motors) {
+                        // motor.forget(updater);
+                        motor.forget(updater2);
+                        motor.forget(updater3);
+                        // motor.forget(mockUpdater);
+                    }
+                    // motorCont2.forget(updater);
+                    motorCont2.forget(updater2);
+                    motorCont2.forget(updater3);
+                    // motorCont2.forget(mockUpdater);
+
+                    // motorCont3.forget(updater);
+                    motorCont3.forget(updater2);
+                    motorCont3.forget(updater3);
+                    // motorCont3.forget(mockUpdater);
+
+                    System.out.println("[add hardware to] mockUpdater: " + mockUpdater.toString());
+                    System.out.println("[add hardware to] updater2: " + updater2.toString());
+                    System.out.println("[add hardware to] updater3: " + updater3.toString());
+                    
+                    System.out.println("[add hardware to] motorData: " + motorContData.toString());
+                    System.out.println("[add hardware to] motorData: " + data2.toString());
+                    System.out.println("[add hardware to] motorData: " + data3.toString());
+
+                }
+            
+                // TODO: If any other Updater classes are added, these 5 tests should be replicated
+                @DisplayName("Updater.updateAllOnce traverses all given ModularUpdaters")
+                @Test
+                void traversesAllGivenUpdaters() {
+                    // This will throw if any updater (mock) does not have updateAll() called
+                    expectingUpdateAll = true;
+                    awaitUpdateAll(ups);
+                    assertDoesNotThrow(() -> Updater.updateAllOnce(ups, 1.0));
+                    assertDoesNotThrow(() -> endAwait(ups));
+
+                    // Making sure it does throw if an updater is forgotten
+                    expectingUpdateAll = true;
+                    awaitUpdateAll(ups);
+                    assertDoesNotThrow(() -> Updater.updateAllOnce(List.of(updater2, updater3), 1.0));
+                    assertThrows(Throwable.class, () -> endAwait(ups));
+                }
+
+                @DisplayName("Updater.updateAllOnce updates all registered updateables")
+                @Test
+                void updatesAllUpdateables() {
+                    final double originalPos1 = motorContData.position;
+                    final double originalPos2 = data2.position;
+                    final double originalPos3 = data3.position;
+
+                    expectingUpdateAll = false; // Ensuring no automatic update occurs
+                    awaitUpdateAll(ups);
+                    motorCont.setPower(1.0);
+                    motorCont2.setPower(1.0);
+                    motorCont3.setPower(1.0);
+                    assertDoesNotThrow(() -> endAwait(ups), "no accidental automatic update");
+
+                    assertNotWithin(0.0, motorContData.getActualVelocity(), 1e-10);
+                    assertNotWithin(0.0, data2.getActualVelocity(), 1e-10);
+                    assertNotWithin(0.0, data3.getActualVelocity(), 1e-10);
+
+                    Updater.updateAllOnce(ups, 1.0);
+
+                    assertNotWithin(originalPos1, motorContData.position, 1e-7);
+                    assertNotWithin(originalPos2, data2.position, 1e-7);
+                    assertNotWithin(originalPos3, data3.position, 1e-7);
+                }
+
+                @DisplayName("Updater.updateAllOnce updates reigstered updateables once")
+                @Test
+                void updatesOnlyOnce() {
+                    final double originalPos1 = motorContData.position;
+                    final double originalPos2 = data2.position;
+                    final double originalPos3 = data3.position;
+
+                    expectingUpdateAll = false; // Ensuring no automatic update occurs
+                    awaitUpdateAll(ups);
+                    motorCont.setPower(1.0);
+                    motorCont2.setPower(1.0);
+                    motorCont3.setPower(1.0);
+                    assertDoesNotThrow(() -> endAwait(ups), "no accidental automatic update");
+
+                    assertNotWithin(0.0, motorContData.getActualVelocity(), 1e-10);
+                    assertNotWithin(0.0, data2.getActualVelocity(), 1e-10);
+                    assertNotWithin(0.0, data3.getActualVelocity(), 1e-10);
+
+                    Updater.updateAllOnce(ups, 1.0);
+
+                    assertFloatEquals(motorContData.maxTicksPerSec + originalPos1, motorContData.position, 1e-7);
+                    assertFloatEquals(data2.maxTicksPerSec + originalPos2, data2.position, 1e-7);
+                    assertFloatEquals(data3.maxTicksPerSec + originalPos3, data3.position, 1e-7);
+                }
+
+                @DisplayName("Updater.updateAllOnce respects the wishes of setUpdatingEnabled")
+                @ParameterizedTest
+                @MethodSource("eightBooleans")
+                void updateAllOnceRespectsSetUpdatingEnabled(boolean bool1, boolean bool2, boolean bool3) {
+                    final double originalPosition = motorContData.position;
+                    final double originalPosition2 = data2.position;
+                    final double originalPosition3 = data3.position;
+
+                    motorCont.setUpdatingEnabled(bool1);
+                    motorCont2.setUpdatingEnabled(bool2);
+                    motorCont3.setUpdatingEnabled(bool3);
+
+                    motorCont.setPower(1.0);
+                    motorCont2.setPower(1.0);
+                    motorCont3.setPower(1.0);
+
+                    expectingUpdateAll = true;
+                    awaitUpdateAll(ups);
+                    Updater.updateAllOnce(ups, 1.0);
+                    endAwait(ups);
+
+                    // assertEquals(motorContData.maxTicksPerSec + originalPosition, motorContData.position);
+                    // assertEquals(data2.maxTicksPerSec + originalPosition2, data2.position);
+                    // assertEquals(data3.maxTicksPerSec + originalPosition3, data3.position);
+
+                    assertEquals(bool1, motorContData.position != originalPosition);
+                    assertEquals(bool2, data2.position != originalPosition2);
+                    assertEquals(bool3, data3.position != originalPosition3);
+                }
+
+                static Stream<Arguments> eightBooleans() {
+                    final Stream.Builder<Arguments> builder = Stream.builder();
+                    for(int x = 0; x < 2; x++) {
+                        for(int y = 0; y < 2; y++) {
+                            for(int z = 0; z < 2; z++) {
+                                builder.add(Arguments.of(x != 0, y != 0, x != 0));
+                            }
+                        }
+                    }
+                    return builder.build();
+                }
+
+                @DisplayName("Updater.updateAllOnce respects perserves of setUpdatingEnabled")
+                @ParameterizedTest
+                @MethodSource("eightBooleans")
+                void updateAllOncePerservesSetUpdatingEnabled(boolean bool1, boolean bool2, boolean bool3) {
+                    final double originalPosition = motorContData.position;
+                    final double originalPosition2 = data2.position;
+                    final double originalPosition3 = data3.position;
+
+                    motorCont.setUpdatingEnabled(bool1);
+                    motorCont2.setUpdatingEnabled(bool2);
+                    motorCont3.setUpdatingEnabled(bool3);
+
+                    motorCont.setPower(1.0);
+                    motorCont2.setPower(1.0);
+                    motorCont3.setPower(1.0);
+
+                    expectingUpdateAll = true;
+                    awaitUpdateAll(ups);
+                    Updater.updateAllOnce(ups, 1.0);
+                    endAwait(ups);
+
+                    // assertEquals(motorContData.maxTicksPerSec + originalPosition, motorContData.position);
+                    // assertEquals(data2.maxTicksPerSec + originalPosition2, data2.position);
+                    // assertEquals(data3.maxTicksPerSec + originalPosition3, data3.position);
+
+                    assertEquals(bool1, motorCont.isUpdatingEnabled());
+                    assertEquals(bool2, motorCont2.isUpdatingEnabled());
+                    assertEquals(bool3, motorCont3.isUpdatingEnabled());
+                }
+
+                @DisplayName("ModularUpdater.updateAllOnceIf... updates always on OFF")
+                @Test
+                void updatesAlwaysOnOff() {
+                    // Storing the original position and then updating it.
+                    final double originalPosition = motorContData.position;
+                    final double originalPosition2 = data2.position;
+                    final double originalPosition3 = data3.position;
+                    motorCont.setPower(1.0);
+                    motorCont2.setPower(1.0);
+                    motorCont3.setPower(1.0);
+                    
+                    // Checking beahvior. Unexpected behavior throws in updateAllIfCacheOutdated
+                    final LynxGetMotorEncoderPositionCommand command1 = new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber());
+                    expectingUpdateAll = true;
+                    awaitUpdateAll(ups);
+                    // assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command1, ""));
+                    assertDoesNotThrow(() -> ModularUpdater.updateAllOnceIfAnyCacheOutdated(
+                        ups,
+                        1.0, 
+                        motorCont,
+                        command1
+                    ));
+                    endAwait(ups);
+
+                    assertNotEquals(originalPosition, motorContData.position);
+                    assertNotEquals(originalPosition2, data2.position);
+                    assertNotEquals(originalPosition3, data3.position);
+
+                    assertNotEquals(originalPosition, motorCont.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(originalPosition2, motorCont2.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(originalPosition3, motorCont3.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+
+                    assertEquals(Math.round(motorContData.position), motorCont.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data2.position), motorCont2.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data3.position), motorCont3.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                
+                    final LynxGetMotorEncoderPositionCommand command2 = new LynxGetMotorEncoderPositionCommand(control, motorCont2.getPortNumber());
+                    expectingUpdateAll = true;
+                    awaitUpdateAll(ups);
+                    // assertEquals(expectingUpdateAll, mockUpdater.isCacheOutdated(motorCont, command2, ""));
+                    assertDoesNotThrow(() -> ModularUpdater.updateAllOnceIfAnyCacheOutdated(
+                        ups,
+                        1.0, 
+                        motorCont3,
+                        command2
+                    ));
+                    endAwait(ups);
+
+                    assertNotEquals(originalPosition, motorContData.position);
+                    assertNotEquals(originalPosition2, data2.position);
+                    assertNotEquals(originalPosition3, data3.position);
+
+                    assertNotEquals(originalPosition, motorCont.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(originalPosition2, motorCont2.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(originalPosition3, motorCont3.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+
+                    assertEquals(Math.round(motorContData.position), motorCont.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data2.position), motorCont2.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data3.position), motorCont3.getCurrentPosition()); // NOTE: Delay from getCurrentPosition is disabled
+                }
+
+                @DisplayName("ModularUdpater.updateAllOnceIf... updates when repeated on AUTO")
+                @Test
+                void updatesWhenRepeatedOnAuto() {
+                    System.out.println("🚒");
+                    control.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
+
+                    // Storing the original position and then updating it.
+                    final double originalPosition = motorContData.position;
+                    final double originalPosition2 = data2.position;
+                    final double originalPosition3 = data3.position;
+                    motorCont.setPower(1.0);
+                    motorCont2.setPower(1.0);
+                    motorCont3.setPower(1.0);
+                    
+                    // Checking beahvior. Unexpected behavior throws in updateAllIfCacheOutdated
+                    // No data has been requested yet, so this will pass
+                    final LynxGetMotorEncoderPositionCommand command1 = new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber());
+                    expectingUpdateAll = true;
+                    assertDoesNotThrow(() -> ModularUpdater.updateAllOnceIfAnyCacheOutdated(
+                        ups,
+                        1.0, 
+                        motorCont,
+                        command1
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    final double secondPosition = motorCont.getCurrentPosition();
+                    final double secondPosition2 = motorCont2.getCurrentPosition();
+                    final double secondPosition3 = motorCont3.getCurrentPosition();
+                    System.out.println("[auto update clear] actual pos: " + motorContData.position);
+                    assertNotEquals(Math.round(originalPosition), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition2), secondPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition3), secondPosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data2.position), secondPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data3.position), secondPosition3); // NOTE: Delay from getCurrentPosition is disabled
+
+                    // Bulk cache has been obtained, but the next command is new, so no update
+                    final LynxGetBulkInputDataCommand command2 = new LynxGetBulkInputDataCommand(control);
+                    expectingUpdateAll = false;
+                    assertDoesNotThrow(() -> ModularUpdater.updateAllOnceIfAnyCacheOutdated(
+                        ups,
+                        1.0, 
+                        motorCont,
+                        command2
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(data2.position, originalPosition2);
+                    assertNotEquals(data3.position, originalPosition3);
+                    final double thirdPosition = motorCont.getCurrentPosition();
+                    final double thirdPosition2 = motorCont2.getCurrentPosition();
+                    final double thirdPosition3 = motorCont3.getCurrentPosition();
+                    System.out.println("[auto update clear] actual pos: " + motorContData.position);
+                    assertNotEquals(Math.round(originalPosition), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition2), secondPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition3), secondPosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), thirdPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data2.position), thirdPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data3.position), thirdPosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(secondPosition, thirdPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(secondPosition2, thirdPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(secondPosition3, thirdPosition3); // NOTE: Delay from getCurrentPosition is disabled
+
+                    // Cleaing and seeing that an update comes through
+                    final LynxGetMotorEncoderPositionCommand command3 = new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber());
+                    expectingUpdateAll = true;
+                    assertDoesNotThrow(() -> ModularUpdater.updateAllOnceIfAnyCacheOutdated(
+                        ups,
+                        1.0, 
+                        motorCont,
+                        command3
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(data2.position, originalPosition2);
+                    assertNotEquals(data3.position, originalPosition3);
+                    final double qincePosition = motorCont.getCurrentPosition();
+                    final double qincePosition2 = motorCont2.getCurrentPosition();
+                    final double qincePosition3 = motorCont3.getCurrentPosition();
+                    assertNotEquals(Math.round(originalPosition), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition2), qincePosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition3), qincePosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(secondPosition, qincePosition);
+                    assertNotEquals(secondPosition2, qincePosition2);
+                    assertNotEquals(secondPosition3, qincePosition3);
+                    assertEquals(Math.round(motorContData.position), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data2.position), qincePosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data3.position), qincePosition3); // NOTE: Delay from getCurrentPosition is disabled
+
+                    // Command not new this time, so no new update
+                    final LynxGetBulkInputDataCommand command4 = new LynxGetBulkInputDataCommand(control);
+                    expectingUpdateAll = false;
+                    assertDoesNotThrow(() -> ModularUpdater.updateAllOnceIfAnyCacheOutdated(
+                        ups,
+                        1.0, 
+                        motorCont,
+                        command4
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(data2.position, originalPosition2);
+                    assertNotEquals(data3.position, originalPosition3);
+                    final double quadPosition = motorCont.getCurrentPosition();
+                    final double quadPosition2 = motorCont2.getCurrentPosition();
+                    final double quadPosition3 = motorCont3.getCurrentPosition();
+                    System.out.println("[auto update clear] actual pos: " + motorContData.position);
+                    assertNotEquals(Math.round(originalPosition), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition2), qincePosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition3), qincePosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), quadPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data2.position), quadPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data3.position), quadPosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(qincePosition, quadPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(qincePosition2, quadPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(qincePosition3, quadPosition3); // NOTE: Delay from getCurrentPosition is disabled
+                }
+
+                @DisplayName("ModularUpdater.updateAllOnceIf... updates when clear on MANUAL")
+                @Test
+                void updatesWhenClearOnManual() {
+                    System.out.println("🎈");
+                    control.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+
+                    // Storing the original position and then updating it.
+                    final double originalPosition = motorContData.position;
+                    final double originalPosition2 = data2.position;
+                    final double originalPosition3 = data3.position;
+
+                    motorCont.setPower(1.0);
+                    motorCont2.setPower(1.0);
+                    motorCont3.setPower(1.0);
+                    
+                    // Checking beahvior. Unexpected behavior throws in updateAllIfCacheOutdated
+                    // No data has been requested yet, so this will pass
+                    expectingUpdateAll = true;
+                    assertDoesNotThrow(() -> ModularUpdater.updateAllOnceIfAnyCacheOutdated(
+                        ups,
+                        1.0, 
+                        motorCont,
+                        new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber())
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(data2.position, originalPosition2);
+                    assertNotEquals(data3.position, originalPosition3);
+                    final double secondPosition = motorCont.getCurrentPosition();
+                    final double secondPosition2 = motorCont2.getCurrentPosition();
+                    final double secondPosition3 = motorCont3.getCurrentPosition();
+                    System.out.println("[manual update clear] actual pos: " + motorContData.position);
+                    assertNotEquals(Math.round(originalPosition), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition2), secondPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition3), secondPosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), secondPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data2.position), secondPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data3.position), secondPosition3); // NOTE: Delay from getCurrentPosition is disabled
+
+                    // Checking beahvior. Unexpected behavior throws in updateAllIfCacheOutdated
+                    // We just got a bulk cache, so no new update will be gotten.
+                    expectingUpdateAll = false;
+                    assertDoesNotThrow(() -> ModularUpdater.updateAllOnceIfAnyCacheOutdated(
+                        ups,
+                        1.0, 
+                        motorCont,
+                        new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber())
+                    ));
+                    final double thirdPosition = motorCont.getCurrentPosition();
+                    final double thirdPosition2 = motorCont2.getCurrentPosition();
+                    final double thirdPosition3 = motorCont3.getCurrentPosition();
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(data2.position, originalPosition2);
+                    assertNotEquals(data3.position, originalPosition3);
+                    assertNotEquals(Math.round(originalPosition), thirdPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition2), thirdPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition3), thirdPosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(motorContData.position), thirdPosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data2.position), thirdPosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data3.position), thirdPosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(secondPosition, thirdPosition);
+                    assertEquals(secondPosition2, thirdPosition2);
+                    assertEquals(secondPosition3, thirdPosition3);
+
+                    // Asserting that when forced to update, the cache stilll wont change
+                    expectingUpdateAll = true;
+                    awaitUpdateAll(ups);
+                    assertDoesNotThrow(() -> Updater.updateAllOnce(ups, 1.0));
+                    endAwait(ups);
+                    final double quadPos= motorCont.getCurrentPosition();
+                    final double quadPos2= motorCont2.getCurrentPosition();
+                    final double quadPos3= motorCont3.getCurrentPosition();
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(data2.position, originalPosition2);
+                    assertNotEquals(data3.position, originalPosition3);
+                    assertNotEquals(Math.round(originalPosition), quadPos);
+                    assertNotEquals(Math.round(originalPosition2), quadPos2);
+                    assertNotEquals(Math.round(originalPosition3), quadPos3);
+                    assertNotEquals(Math.round(motorContData.position), quadPos);
+                    assertNotEquals(Math.round(data2.position), quadPos2);
+                    assertNotEquals(Math.round(data3.position), quadPos3);
+                    assertEquals(thirdPosition, quadPos);
+                    assertEquals(thirdPosition2, quadPos2);
+                    assertEquals(thirdPosition3, quadPos3);
+
+                    // Cleaing and seeing that an update comes through
+                    control.clearBulkCache();
+                    expectingUpdateAll = true;
+                    assertDoesNotThrow(() -> ModularUpdater.updateAllOnceIfAnyCacheOutdated(
+                        ups,
+                        1.0, 
+                        motorCont,
+                        new LynxGetMotorEncoderPositionCommand(control, motorCont.getPortNumber())
+                    ));
+                    assertNotEquals(motorContData.position, originalPosition);
+                    assertNotEquals(data2.position, originalPosition2);
+                    assertNotEquals(data3.position, originalPosition3);
+                    final double qincePosition = motorCont.getCurrentPosition();
+                    final double qincePosition2 = motorCont2.getCurrentPosition();
+                    final double qincePosition3 = motorCont3.getCurrentPosition();
+                    assertNotEquals(Math.round(originalPosition), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition2), qincePosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(Math.round(originalPosition3), qincePosition3); // NOTE: Delay from getCurrentPosition is disabled
+                    assertNotEquals(thirdPosition, qincePosition);
+                    assertNotEquals(thirdPosition2, qincePosition2);
+                    assertNotEquals(thirdPosition3, qincePosition3);
+                    assertEquals(Math.round(motorContData.position), qincePosition); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data2.position), qincePosition2); // NOTE: Delay from getCurrentPosition is disabled
+                    assertEquals(Math.round(data3.position), qincePosition3); // NOTE: Delay from getCurrentPosition is disabled
                 }
             }
         }
